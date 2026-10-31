@@ -1,0 +1,5 @@
+caravan:
+  event:
+    messaging:
+      graceful-shutdown-seconds: 0
+      poll-wait-seconds: 1

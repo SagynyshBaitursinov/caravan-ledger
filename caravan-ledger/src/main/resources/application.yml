@@ -1,0 +1,21 @@
+app:
+  name: caravan-ledger
+
+spring:
+  application:
+    name: ${app.name}
+
+caravan:
+  event:
+    sourcing:
+      snapshot-store:
+        dynamo-db:
+          table-name: ${app.name}_snapshots
+      event-store:
+        dynamo-db:
+          table-name: ${app.name}_events
+    messaging:
+      queue-name-prefix: ${app.name}
+      subscribed-entities:
+        - account
+        - transaction

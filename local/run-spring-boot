@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e -o pipefail
+
+function main() {
+  ./mvnw spring-boot:run \
+    --projects caravan-ledger \
+    -Dmaven.test.skip=true \
+    -Dspring-boot.run.profiles=local
+}
+
+main
