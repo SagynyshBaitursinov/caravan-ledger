@@ -9,12 +9,31 @@
     <packaging>pom</packaging>
 
     <name>caravan-ledger-parent</name>
+    <description>Parent POM for caravan-ledger, an event-sourced double-entry ledger built on events-caravan</description>
+    <url>https://github.com/SagynyshBaitursinov/caravan-ledger</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <developers>
         <developer>
+            <id>SagynyshBaitursinov</id>
             <name>Sagynysh Baitursinov</name>
+            <email>baitursynovs@gmail.com</email>
         </developer>
     </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/SagynyshBaitursinov/caravan-ledger.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/SagynyshBaitursinov/caravan-ledger.git</developerConnection>
+        <url>https://github.com/SagynyshBaitursinov/caravan-ledger</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <modules>
         <module>caravan-ledger</module>
