@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/SagynyshBaitursinov/caravan-ledger/security/advisories/new
+    about: Please report security vulnerabilities privately, not as public issues.
+  - name: events-caravan framework issue
+    url: https://github.com/SagynyshBaitursinov/events-caravan/issues
+    about: Issues with the framework itself belong in the events-caravan repository.

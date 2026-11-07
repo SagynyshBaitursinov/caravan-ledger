@@ -1,5 +1,6 @@
 # caravan-ledger
 
+[![Test](https://github.com/SagynyshBaitursinov/caravan-ledger/actions/workflows/test.yml/badge.svg)](https://github.com/SagynyshBaitursinov/caravan-ledger/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **Demo:** Event-sourced double-entry ledger built on [events-caravan](https://github.com/SagynyshBaitursinov/events-caravan). 
