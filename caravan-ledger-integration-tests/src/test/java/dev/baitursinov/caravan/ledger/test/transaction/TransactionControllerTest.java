@@ -1,20 +1,20 @@
 package dev.baitursinov.caravan.ledger.test.transaction;
 
+import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.api.AccountController.AccountResponse;
 import dev.baitursinov.caravan.ledger.api.AccountController.OpenAccountResponse;
 import dev.baitursinov.caravan.ledger.api.TransactionController.StartTransactionResponse;
 import dev.baitursinov.caravan.ledger.api.TransactionController.TransactionResponse;
 import dev.baitursinov.caravan.ledger.test.AbstractSpringBootTest;
+import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionStatus;
 import org.joda.money.Money;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -27,14 +27,13 @@ import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDI
 import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@AutoConfigureMockMvc
 class TransactionControllerTest extends AbstractSpringBootTest {
 
   @Autowired
-  MockMvcTester mvc;
+  JsonMapper jsonMapper;
 
   @Autowired
-  JsonMapper jsonMapper;
+  AccountRepository accountRepository;
 
   @Test
   void transferMovesMoneyBetweenAccounts() {
@@ -56,6 +55,7 @@ class TransactionControllerTest extends AbstractSpringBootTest {
     var transaction = getTransaction(transactionId);
     var amount = Money.parse("EUR 100.50");
     assertThat(transaction.startTimestamp()).isNotNull();
+    assertThat(transaction.abortedReason()).isNull();
     assertThat(transaction.legs()).containsExactlyInAnyOrder(
         TransactionLeg.of(AccountId.of(from), DEBIT, amount),
         TransactionLeg.of(AccountId.of(to), CREDIT, amount));
@@ -72,9 +72,12 @@ class TransactionControllerTest extends AbstractSpringBootTest {
     var result = mvc.get().uri("/transactions/{id}", transactionId).exchange();
 
     assertThat(result).bodyJson().isLenientlyEqualTo("""
-        {"legs": [
-          {"amount": {"amount": 12.34, "currency": "EUR"}},
-          {"amount": {"amount": 12.34, "currency": "EUR"}}]}""");
+        {
+          "legs": [
+            {"amount": {"amount": 12.34, "currency": "EUR"}},
+            {"amount": {"amount": 12.34, "currency": "EUR"}}
+          ]
+        }""");
   }
 
   @Test
@@ -100,6 +103,34 @@ class TransactionControllerTest extends AbstractSpringBootTest {
         assertThat(getAccount(to).balance()).isEqualTo(Money.parse("CHF 5"))));
     awaitEventually(() ->
         assertThat(getAccount(from).balance()).isEqualTo(Money.parse("CHF " + -5 * transferCount)));
+    assertThat(getAccount(from).availableBalance()).isEqualTo(Money.parse("CHF " + -5 * transferCount));
+  }
+
+  @Test
+  void transfersInParallelWithoutFundsAreAllAbortedAndRolledBack() throws Exception {
+    int transferCount = 20;
+    var from = openAccount("GBP", false);
+    var receivers = IntStream.range(0, transferCount)
+        .mapToObj(_ -> openAccount("GBP", false))
+        .toList();
+
+    List<String> transactionIds = new ArrayList<>();
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      var futures = receivers.stream()
+          .map(to -> executor.submit(() -> startTransaction(transfer("GBP", from, to, "5"))))
+          .toList();
+      for (var future : futures) {
+        transactionIds.add(read(future.get(), StartTransactionResponse.class).transactionId());
+      }
+    }
+
+    transactionIds.forEach(transactionId -> awaitEventually(() -> {
+      assertThat(getTransaction(transactionId).status()).isEqualTo(TransactionStatus.ABORTED);
+      assertThat(accountRepository.findBy(from).orElseThrow()
+          .hasRolledBackTransaction(TransactionId.of(transactionId))).isTrue();
+    }));
+    assertThat(getAccount(from).balance()).isEqualTo(Money.parse("GBP 0"));
+    assertThat(getAccount(from).availableBalance()).isEqualTo(Money.parse("GBP 0"));
   }
 
   @Test
@@ -112,6 +143,7 @@ class TransactionControllerTest extends AbstractSpringBootTest {
         StartTransactionResponse.class).transactionId();
 
     awaitEventually(() -> assertThat(getTransaction(transactionId).status()).isEqualTo(TransactionStatus.ABORTED));
+    assertThat(getTransaction(transactionId).abortedReason()).contains("cannot debit");
     assertThat(getAccount(to).balance()).isEqualTo(Money.parse("USD 0"));
   }
 
@@ -131,13 +163,19 @@ class TransactionControllerTest extends AbstractSpringBootTest {
     assertRejected(transfer("XYZ", "a", "b", "1"), "malformed");
     assertRejected(transfer("USD", "a", "b", "1.001"), "malformed");
     assertRejected("""
-        {"legs": [
-          {"accountId": "a", "type": "DEBIT", "amount": {"amount": 2, "currency": "USD"}},
-          {"accountId": "b", "type": "CREDIT", "amount": {"amount": 1, "currency": "USD"}}]}""", "sum up to zero");
+        {
+          "legs": [
+            {"accountId": "a", "type": "DEBIT", "amount": {"amount": 2, "currency": "USD"}},
+            {"accountId": "b", "type": "CREDIT", "amount": {"amount": 1, "currency": "USD"}}
+          ]
+        }""", "sum up to zero");
     assertRejected("""
-        {"legs": [
-          {"accountId": "a", "type": "DEBIT", "amount": {"amount": 1, "currency": "USD"}},
-          {"accountId": "b", "type": "CREDIT", "amount": {"amount": 1, "currency": "EUR"}}]}""", "one currency");
+        {
+          "legs": [
+            {"accountId": "a", "type": "DEBIT", "amount": {"amount": 1, "currency": "USD"}},
+            {"accountId": "b", "type": "CREDIT", "amount": {"amount": 1, "currency": "EUR"}}
+          ]
+        }""", "one currency");
   }
 
   @Test
@@ -196,9 +234,12 @@ class TransactionControllerTest extends AbstractSpringBootTest {
                                  String to,
                                  String amount) {
     return """
-        {"legs": [
-          {"accountId": "%1$s", "type": "DEBIT", "amount": {"amount": %3$s, "currency": "%4$s"}},
-          {"accountId": "%2$s", "type": "CREDIT", "amount": {"amount": %3$s, "currency": "%4$s"}}]}"""
+        {
+          "legs": [
+            {"accountId": "%1$s", "type": "DEBIT", "amount": {"amount": %3$s, "currency": "%4$s"}},
+            {"accountId": "%2$s", "type": "CREDIT", "amount": {"amount": %3$s, "currency": "%4$s"}}
+          ]
+        }"""
         .formatted(from, to, amount, currency);
   }
 

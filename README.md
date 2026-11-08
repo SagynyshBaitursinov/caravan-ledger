@@ -92,17 +92,17 @@ Location: /transactions/cdb9d5e5-...
 {"transactionId":"cdb9d5e5-..."}
 ```
 
-The saga is asynchronous: `status` goes from `PENDING` to `COMPLETED` or `ABORTED`, balances on accounts follow after a moment.
+The saga is asynchronous: `status` goes from `PENDING` to `COMPLETED` or `ABORTED` (with `abortionReason`), balances on accounts follow after a moment.
 
 ```bash
 curl localhost:8080/transactions/cdb9d5e5-...
 # {"transactionId":"cdb9d5e5-...","status":"COMPLETED","startTimestamp":"...","legs":[...]}
 
 curl localhost:8080/accounts/bc31eac7-...
-# {"accountId":"bc31eac7-...","currency":"EUR","balance":{"amount":250.00,"currency":"EUR"},"availableBalance":{"amount":250.00,"currency":"EUR"},"overdraftAllowed":false}
+# {"accountId":"bc31eac7-...","balance":{"amount":250.00,"currency":"EUR"},"availableBalance":{"amount":250.00,"currency":"EUR"},"overdraftAllowed":false}
 
 curl localhost:8080/accounts/5f0e8a21-...
-# {"accountId":"5f0e8a21-...","currency":"EUR","balance":{"amount":-250.00,"currency":"EUR"},"availableBalance":{"amount":-250.00,"currency":"EUR"},"overdraftAllowed":true}
+# {"accountId":"5f0e8a21-...","balance":{"amount":-250.00,"currency":"EUR"},"availableBalance":{"amount":-250.00,"currency":"EUR"},"overdraftAllowed":true}
 ```
 
 ## License

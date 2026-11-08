@@ -32,6 +32,7 @@ final class TransactionEventApplier {
   static void applyTransactionAborted(Transaction transaction,
                                       Event<TransactionAbortionDetails> event) {
     transaction.status = TransactionStatus.ABORTED;
+    transaction.abortedReason = event.payload().reason();
   }
 
   @ApplyEvent(COMPLETED)

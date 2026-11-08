@@ -2,6 +2,7 @@ package dev.baitursinov.caravan.ledger.transaction.value;
 
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.account.value.LedgerEntryType;
+import dev.baitursinov.caravan.ledger.common.InvalidInputException;
 import org.joda.money.Money;
 
 public record TransactionLeg(AccountId accountId,
@@ -10,7 +11,7 @@ public record TransactionLeg(AccountId accountId,
 
   public TransactionLeg {
     if (!amount.isPositive()) {
-      throw new IllegalArgumentException("amount must be positive, got " + amount);
+      throw new InvalidInputException("amount must be positive, got " + amount);
     }
   }
 

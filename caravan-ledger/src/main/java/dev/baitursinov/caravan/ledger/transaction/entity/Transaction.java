@@ -40,6 +40,7 @@ public class Transaction extends EventSourcedEntity {
   List<TransactionLeg> legs = List.of();
   Map<AccountId, TransactionLeg> legsByAccountId = Map.of();
   TransactionStatus status;
+  @Nullable String abortedReason;
 
   Transaction(TransactionId id) {
     this.id = Objects.requireNonNull(id, "id");
@@ -88,6 +89,10 @@ public class Transaction extends EventSourcedEntity {
 
   public TransactionStatus status() {
     return status;
+  }
+
+  public @Nullable String abortedReason() {
+    return abortedReason;
   }
 
   public boolean isAborted() {

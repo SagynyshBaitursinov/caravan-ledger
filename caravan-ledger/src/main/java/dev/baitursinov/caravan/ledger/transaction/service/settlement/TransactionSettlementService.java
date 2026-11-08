@@ -1,6 +1,7 @@
 package dev.baitursinov.caravan.ledger.transaction.service.settlement;
 
 import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
+import dev.baitursinov.caravan.ledger.common.ConcurrentModificationRetry;
 import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
@@ -15,6 +16,10 @@ public class TransactionSettlementService {
   private final AccountRepository accountRepository;
 
   public void settle(TransactionId transactionId) {
+    ConcurrentModificationRetry.run(() -> settleLegs(transactionId));
+  }
+
+  private void settleLegs(TransactionId transactionId) {
     var transaction = transactionRepository.findBy(transactionId.value())
         .orElseThrow(() -> new IllegalStateException("transactionId=%s not found".formatted(transactionId)));
     if (!transaction.isCompleted()) {

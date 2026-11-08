@@ -1,5 +1,7 @@
 package dev.baitursinov.caravan.ledger.transaction.value;
 
+import dev.baitursinov.caravan.ledger.common.InvalidInputException;
+
 import java.util.UUID;
 
 import static dev.baitursinov.caravan.ledger.common.Utils.hasText;
@@ -8,7 +10,7 @@ public record TransactionId(String value) {
 
   public TransactionId {
     if (!hasText(value)) {
-      throw new IllegalArgumentException("TransactionId must contain text");
+      throw new InvalidInputException("TransactionId must contain text");
     }
   }
 

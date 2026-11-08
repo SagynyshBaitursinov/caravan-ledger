@@ -6,20 +6,14 @@ import dev.baitursinov.caravan.ledger.test.AbstractSpringBootTest;
 import org.joda.money.Money;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@AutoConfigureMockMvc
 class AccountControllerTest extends AbstractSpringBootTest {
-
-  @Autowired
-  MockMvcTester mvc;
 
   @Autowired
   JsonMapper jsonMapper;
@@ -67,6 +61,11 @@ class AccountControllerTest extends AbstractSpringBootTest {
   @Test
   void unknownAccountIsNotFound() {
     assertThat(mvc.get().uri("/accounts/{id}", "unknown")).hasStatus(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void blankAccountIdIsRejected() {
+    assertThat(mvc.get().uri("/accounts/{id}", " ")).hasStatus(HttpStatus.BAD_REQUEST);
   }
 
   private void assertRejected(String body,

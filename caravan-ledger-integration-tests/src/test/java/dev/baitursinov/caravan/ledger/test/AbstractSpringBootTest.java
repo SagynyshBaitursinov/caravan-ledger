@@ -3,9 +3,12 @@ package dev.baitursinov.caravan.ledger.test;
 import dev.baitursinov.caravan.ledger.CaravanLedgerApplication;
 import org.joda.money.Money;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Duration;
 
@@ -15,6 +18,7 @@ import static org.awaitility.Awaitility.await;
 @SpringBootTest(classes = CaravanLedgerApplication.class)
 @ActiveProfiles({"local", "test"})
 @ExtendWith(SpringExtension.class)
+@AutoConfigureMockMvc
 public abstract class AbstractSpringBootTest {
 
   protected static final Duration POLL_TIMEOUT = Duration.ofSeconds(30);
@@ -23,6 +27,9 @@ public abstract class AbstractSpringBootTest {
   protected static final Money ZERO = Money.zero(DEFAULT_CURRENCY);
   protected static final Money FIVE = usd(5);
   protected static final Money TEN = usd(10);
+
+  @Autowired
+  protected MockMvcTester mvc;
 
   protected void awaitEventually(Runnable assertion) {
     await().atMost(POLL_TIMEOUT).pollInterval(POLL_INTERVAL).untilAsserted(assertion::run);

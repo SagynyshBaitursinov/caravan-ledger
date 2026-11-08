@@ -3,6 +3,7 @@ package dev.baitursinov.caravan.ledger.transaction.service.clearing;
 import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
 import dev.baitursinov.caravan.ledger.account.exception.AccountNotFoundException;
 import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
+import dev.baitursinov.caravan.ledger.common.ConcurrentModificationRetry;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
@@ -21,6 +22,10 @@ public class TransactionClearingService {
   private final AccountRepository accountRepository;
 
   public void clear(TransactionId transactionId) {
+    ConcurrentModificationRetry.run(() -> clearLegs(transactionId));
+  }
+
+  private void clearLegs(TransactionId transactionId) {
     var transaction = load(transactionId);
     if (transaction.isAborted() || transaction.isCompleted()) {
       return;
@@ -50,6 +55,10 @@ public class TransactionClearingService {
   }
 
   public void rollback(TransactionId transactionId) {
+    ConcurrentModificationRetry.run(() -> rollbackLegs(transactionId));
+  }
+
+  private void rollbackLegs(TransactionId transactionId) {
     var transaction = load(transactionId);
     if (!transaction.isAborted()) {
       return;

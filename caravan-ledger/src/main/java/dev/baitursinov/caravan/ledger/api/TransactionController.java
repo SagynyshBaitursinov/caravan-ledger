@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.joda.money.Money;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -71,6 +72,7 @@ public class TransactionController {
 
   public record TransactionResponse(String transactionId,
                                     TransactionStatus status,
+                                    @Nullable String abortedReason,
                                     ZonedDateTime startTimestamp,
                                     List<TransactionLeg> legs) {
 
@@ -78,6 +80,7 @@ public class TransactionController {
       return new TransactionResponse(
           transaction.id().value(),
           transaction.status(),
+          transaction.abortedReason(),
           transaction.startTimestamp(),
           transaction.legs());
     }
