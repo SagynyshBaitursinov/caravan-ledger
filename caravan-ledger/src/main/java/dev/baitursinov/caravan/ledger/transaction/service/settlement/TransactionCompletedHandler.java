@@ -1,4 +1,4 @@
-package dev.baitursinov.caravan.ledger.settlement;
+package dev.baitursinov.caravan.ledger.transaction.service.settlement;
 
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionCompletionDetails;
@@ -15,10 +15,10 @@ public class TransactionCompletedHandler implements EventHandler<TransactionComp
 
   private static final EventType INTERESTED_EVENT_TYPE = new EventType(Transaction.ENTITY_NAME, COMPLETED);
 
-  private final SettlementService settlementService;
+  private final TransactionSettlementService transactionSettlementService;
 
-  public TransactionCompletedHandler(SettlementService settlementService) {
-    this.settlementService = settlementService;
+  public TransactionCompletedHandler(TransactionSettlementService transactionSettlementService) {
+    this.transactionSettlementService = transactionSettlementService;
   }
 
   @Override
@@ -28,6 +28,6 @@ public class TransactionCompletedHandler implements EventHandler<TransactionComp
 
   @Override
   public void handle(Event<TransactionCompletionDetails> event) {
-    settlementService.settle(TransactionId.of(event.entityReference().entityId()));
+    transactionSettlementService.settle(TransactionId.of(event.entityReference().entityId()));
   }
 }

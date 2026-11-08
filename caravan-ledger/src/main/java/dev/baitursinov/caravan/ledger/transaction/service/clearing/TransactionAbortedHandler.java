@@ -1,4 +1,4 @@
-package dev.baitursinov.caravan.ledger.clearing;
+package dev.baitursinov.caravan.ledger.transaction.service.clearing;
 
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionAbortionDetails;
@@ -17,7 +17,7 @@ public class TransactionAbortedHandler implements EventHandler<TransactionAborti
 
   private static final EventType INTERESTED_EVENT_TYPE = new EventType(Transaction.ENTITY_NAME, ABORTED);
 
-  private final ClearingService clearingService;
+  private final TransactionClearingService transactionClearingService;
 
   @Override
   public boolean isOfInterest(Event<TransactionAbortionDetails> event) {
@@ -26,6 +26,6 @@ public class TransactionAbortedHandler implements EventHandler<TransactionAborti
 
   @Override
   public void handle(Event<TransactionAbortionDetails> event) {
-    clearingService.rollback(TransactionId.of(event.entityReference().entityId()));
+    transactionClearingService.rollback(TransactionId.of(event.entityReference().entityId()));
   }
 }

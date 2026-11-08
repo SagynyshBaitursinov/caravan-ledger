@@ -1,4 +1,4 @@
-package dev.baitursinov.caravan.ledger.clearing;
+package dev.baitursinov.caravan.ledger.transaction.service.clearing;
 
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionDefinition;
@@ -15,10 +15,10 @@ public class TransactionStartedHandler implements EventHandler<TransactionDefini
 
   private static final EventType INTERESTED_EVENT_TYPE = new EventType(Transaction.ENTITY_NAME, STARTED);
 
-  private final ClearingService clearingService;
+  private final TransactionClearingService transactionClearingService;
 
-  public TransactionStartedHandler(ClearingService clearingService) {
-    this.clearingService = clearingService;
+  public TransactionStartedHandler(TransactionClearingService transactionClearingService) {
+    this.transactionClearingService = transactionClearingService;
   }
 
   @Override
@@ -28,6 +28,6 @@ public class TransactionStartedHandler implements EventHandler<TransactionDefini
 
   @Override
   public void handle(Event<TransactionDefinition> event) {
-    clearingService.clear(TransactionId.of(event.entityReference().entityId()));
+    transactionClearingService.clear(TransactionId.of(event.entityReference().entityId()));
   }
 }

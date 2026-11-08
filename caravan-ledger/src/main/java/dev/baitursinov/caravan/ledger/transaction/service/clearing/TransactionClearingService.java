@@ -1,4 +1,4 @@
-package dev.baitursinov.caravan.ledger.clearing;
+package dev.baitursinov.caravan.ledger.transaction.service.clearing;
 
 import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
 import dev.baitursinov.caravan.ledger.account.exception.AccountNotFoundException;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ClearingService {
+public class TransactionClearingService {
 
   private final TransactionRepository transactionRepository;
   private final AccountRepository accountRepository;

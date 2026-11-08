@@ -1,4 +1,4 @@
-package dev.baitursinov.caravan.ledger.settlement;
+package dev.baitursinov.caravan.ledger.transaction.service.settlement;
 
 import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
 import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class SettlementService {
+public class TransactionSettlementService {
 
   private final TransactionRepository transactionRepository;
   private final AccountRepository accountRepository;
