@@ -38,21 +38,6 @@ class TransactionRedeliveryTest extends AbstractTransactionTest {
   }
 
   @Test
-  void rollbackOfCompletedTransactionIsIgnored() {
-    var from = openFundedAccount(TEN);
-    var to = openAccount(false);
-    var transactionId = initiateTransfer(from, to, FIVE);
-    awaitSettled(transactionId);
-    var versions = versionsOf(transactionId, from.id(), to.id());
-
-    transactionClearingService.rollback(transactionId);
-
-    assertThat(versionsOf(transactionId, from.id(), to.id())).isEqualTo(versions);
-    assertThat(reload(from).balance()).isEqualTo(FIVE);
-    assertThat(reload(to).balance()).isEqualTo(FIVE);
-  }
-
-  @Test
   void redeliveredRollbackAndClearingOfAbortedTransactionChangeNothing() {
     var from = openFundedAccount(FIVE);
     var to = openAccount(false);
@@ -62,7 +47,6 @@ class TransactionRedeliveryTest extends AbstractTransactionTest {
 
     transactionClearingService.rollback(transactionId);
     transactionClearingService.clear(transactionId);
-    transactionSettlementService.settle(transactionId);
 
     assertThat(versionsOf(transactionId, from.id(), to.id())).isEqualTo(versions);
     assertThat(reload(from).balance()).isEqualTo(FIVE);

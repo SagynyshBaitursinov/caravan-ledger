@@ -60,9 +60,6 @@ public class TransactionClearingService {
 
   private void rollbackLegs(TransactionId transactionId) {
     var transaction = load(transactionId);
-    if (!transaction.isAborted()) {
-      return;
-    }
 
     // Every leg is rolled back, even those never held, so a hold command replaying can no longer succeed
     for (TransactionLeg leg : transaction.legs()) {

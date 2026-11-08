@@ -22,9 +22,6 @@ public class TransactionSettlementService {
   private void settleLegs(TransactionId transactionId) {
     var transaction = transactionRepository.findBy(transactionId.value())
         .orElseThrow(() -> new IllegalStateException("transactionId=%s not found".formatted(transactionId)));
-    if (!transaction.isCompleted()) {
-      return;
-    }
 
     for (TransactionLeg leg : transaction.legs()) {
       var account = accountRepository.findBy(leg.accountId().value())
