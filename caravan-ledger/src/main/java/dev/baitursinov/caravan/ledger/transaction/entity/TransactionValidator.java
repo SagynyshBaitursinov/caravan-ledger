@@ -1,6 +1,7 @@
 package dev.baitursinov.caravan.ledger.transaction.entity;
 
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
+import dev.baitursinov.caravan.ledger.common.InvalidInputException;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -16,7 +17,7 @@ final class TransactionValidator {
 
   static void validate(List<TransactionLeg> legs) {
     if (legs.isEmpty()) {
-      throw new IllegalArgumentException("Transaction must contain legs");
+      throw new InvalidInputException("Transaction must contain legs");
     }
 
     Set<AccountId> accountIds = new HashSet<>();
@@ -25,11 +26,11 @@ final class TransactionValidator {
 
     for (TransactionLeg leg : legs) {
       if (!accountIds.add(leg.accountId())) {
-        throw new IllegalArgumentException(
+        throw new InvalidInputException(
             "Transaction cannot be applied to account " + leg.accountId() + " more than once");
       }
       if (!leg.amount().getCurrencyUnit().equals(currency)) {
-        throw new IllegalArgumentException(
+        throw new InvalidInputException(
             "Legs must share one currency, got " + currency + " and " + leg.amount().getCurrencyUnit());
       }
       balance = switch (leg.type()) {
@@ -39,7 +40,7 @@ final class TransactionValidator {
     }
 
     if (!balance.isZero()) {
-      throw new IllegalArgumentException("Credits and debits must sum up to zero, got " + balance);
+      throw new InvalidInputException("Credits and debits must sum up to zero, got " + balance);
     }
   }
 }

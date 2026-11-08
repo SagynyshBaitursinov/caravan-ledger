@@ -11,6 +11,7 @@ import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import dev.baitursinov.caravan.event.sourcing.EntityName;
 import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
 import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
+import lombok.Getter;
 import org.joda.money.CurrencyMismatchException;
 import org.joda.money.CurrencyUnit;
 import org.joda.money.Money;
@@ -40,6 +41,7 @@ public class Account extends EventSourcedEntity {
   final Set<TransactionId> settledTransactions = new HashSet<>();
   final Set<TransactionId> rolledBackTransactions = new HashSet<>();
 
+  @Getter
   boolean overdraftAllowed;
   @Nullable Money balance;
   @Nullable Money heldDebits;

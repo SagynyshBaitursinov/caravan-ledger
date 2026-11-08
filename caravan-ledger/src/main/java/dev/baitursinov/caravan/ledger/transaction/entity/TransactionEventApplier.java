@@ -5,6 +5,7 @@ import dev.baitursinov.caravan.ledger.transaction.value.TransactionAbortionDetai
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionCompletionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionDefinition;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
+import dev.baitursinov.caravan.ledger.transaction.value.TransactionStatus;
 import dev.baitursinov.caravan.event.Event;
 import dev.baitursinov.caravan.event.sourcing.applying.ApplyEvent;
 
@@ -30,13 +31,14 @@ final class TransactionEventApplier {
   @ApplyEvent(ABORTED)
   static void applyTransactionAborted(Transaction transaction,
                                       Event<TransactionAbortionDetails> event) {
-    transaction.aborted = true;
+    transaction.status = TransactionStatus.ABORTED;
+    transaction.abortedReason = event.payload().reason();
   }
 
   @ApplyEvent(COMPLETED)
   static void applyTransactionCompleted(Transaction transaction,
                                         Event<TransactionCompletionDetails> event) {
-    transaction.completed = true;
+    transaction.status = TransactionStatus.COMPLETED;
   }
 
   private static Map<AccountId, TransactionLeg> createLegsByAccountId(TransactionDefinition started) {

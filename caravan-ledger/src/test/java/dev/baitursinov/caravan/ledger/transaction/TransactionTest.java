@@ -5,6 +5,7 @@ import dev.baitursinov.caravan.ledger.account.value.LedgerEntryType;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
+import dev.baitursinov.caravan.ledger.transaction.value.TransactionStatus;
 import org.joda.money.CurrencyUnit;
 import org.joda.money.Money;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class TransactionTest {
 
     var transaction = Transaction.start(startTimestamp, legs);
 
+    assertThat(transaction.status()).isEqualTo(TransactionStatus.PENDING);
     assertThat(transaction.startTimestamp()).isEqualTo(startTimestamp);
     assertThat(transaction.legs()).containsExactlyInAnyOrderElementsOf(legs);
     legs.forEach(leg -> assertThat(transaction.legFor(leg.accountId())).contains(leg));
@@ -120,14 +122,18 @@ class TransactionTest {
     var rejected = started();
     rejected.abort("no funds");
     rejected.abort("again");
+    assertThat(rejected.status()).isEqualTo(TransactionStatus.ABORTED);
     assertThat(rejected.isAborted()).isTrue();
+    assertThat(rejected.isCompleted()).isFalse();
     assertThat(rejected.version()).isEqualTo(2);
     assertThatThrownBy(rejected::complete).isInstanceOf(IllegalStateException.class);
 
     var completed = started();
     completed.complete();
     completed.complete();
+    assertThat(completed.status()).isEqualTo(TransactionStatus.COMPLETED);
     assertThat(completed.isCompleted()).isTrue();
+    assertThat(completed.isAborted()).isFalse();
     assertThat(completed.version()).isEqualTo(2);
     assertThatThrownBy(() -> completed.abort("late")).isInstanceOf(IllegalStateException.class);
   }

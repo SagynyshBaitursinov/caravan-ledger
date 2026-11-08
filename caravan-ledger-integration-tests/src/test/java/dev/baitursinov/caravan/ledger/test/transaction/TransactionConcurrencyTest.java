@@ -43,6 +43,22 @@ class TransactionConcurrencyTest extends AbstractTransactionTest {
     });
   }
 
+  @Test
+  void hundredTransactionsOnTheSameAccountAreAllSettled() {
+    var from = openFundedAccount(usd(100));
+    var to = openAccount(false);
+
+    var transactionIds = IntStream.range(0, 100)
+        .mapToObj(_ -> initiateTransfer(from, to, usd(1)))
+        .toList();
+    transactionIds.forEach(this::awaitSettled);
+
+    assertThat(reload(from).balance()).isEqualTo(ZERO);
+    assertThat(reload(from).availableBalance()).isEqualTo(ZERO);
+    assertThat(reload(to).balance()).isEqualTo(usd(100));
+    assertThat(reload(to).availableBalance()).isEqualTo(usd(100));
+  }
+
   private record Transfer(Account from, Account to) {
   }
 }

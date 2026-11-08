@@ -1,5 +1,7 @@
 package dev.baitursinov.caravan.ledger.account.value;
 
+import dev.baitursinov.caravan.ledger.common.InvalidInputException;
+
 import java.util.UUID;
 
 import static dev.baitursinov.caravan.ledger.common.Utils.hasText;
@@ -8,7 +10,7 @@ public record AccountId(String value) {
 
   public AccountId {
     if (!hasText(value)) {
-      throw new IllegalArgumentException("AccountId must contain text");
+      throw new InvalidInputException("AccountId must contain text");
     }
   }
 

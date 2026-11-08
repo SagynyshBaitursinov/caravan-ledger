@@ -1,15 +1,15 @@
 package dev.baitursinov.caravan.ledger.transaction.entity;
 
+import dev.baitursinov.caravan.event.sourcing.EntityName;
+import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
+import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionAbortionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionCompletionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionDefinition;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
-import dev.baitursinov.caravan.event.sourcing.EntityName;
-import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
-import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
-import lombok.Getter;
+import dev.baitursinov.caravan.ledger.transaction.value.TransactionStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.time.ZonedDateTime;
@@ -39,13 +39,12 @@ public class Transaction extends EventSourcedEntity {
   @Nullable ZonedDateTime startTimestamp;
   List<TransactionLeg> legs = List.of();
   Map<AccountId, TransactionLeg> legsByAccountId = Map.of();
-  @Getter
-  boolean aborted;
-  @Getter
-  boolean completed;
+  TransactionStatus status;
+  @Nullable String abortedReason;
 
   Transaction(TransactionId id) {
     this.id = Objects.requireNonNull(id, "id");
+    this.status = TransactionStatus.PENDING;
   }
 
   public static Transaction start(ZonedDateTime startTimestamp,
@@ -86,6 +85,22 @@ public class Transaction extends EventSourcedEntity {
     }
 
     recordEvent(COMPLETED, new TransactionCompletionDetails());
+  }
+
+  public TransactionStatus status() {
+    return status;
+  }
+
+  public @Nullable String abortedReason() {
+    return abortedReason;
+  }
+
+  public boolean isAborted() {
+    return status == TransactionStatus.ABORTED;
+  }
+
+  public boolean isCompleted() {
+    return status == TransactionStatus.COMPLETED;
   }
 
   public ZonedDateTime startTimestamp() {
