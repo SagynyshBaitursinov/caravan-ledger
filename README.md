@@ -26,7 +26,7 @@ while acknowledging eventual consistency as a compromise. The business processes
 
 ## Running locally
 
-Prerequisites: **Java 25**, **Docker**, **AWS CLI**. AWS is emulated by [floci](https://hub.docker.com/r/floci/floci)
+Prerequisites: **Java 25**, **Docker**, **AWS CLI**. AWS is emulated by [ministack](https://hub.docker.com/r/ministackorg/ministack)
 on `localhost:4566` with dummy credentials, no AWS account is needed.
 
 ### 1. Run tests

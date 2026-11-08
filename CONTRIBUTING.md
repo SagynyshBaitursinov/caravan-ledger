@@ -12,7 +12,7 @@ Proposals are evaluated against the events-caravan
 
 - **Java 25** (Temurin is what CI uses)
 - **Docker** — the test environment emulates AWS locally (DynamoDB, SNS, SQS, Lambda) via
-  [floci](https://hub.docker.com/r/floci/floci) and Docker Compose
+  [ministack](https://hub.docker.com/r/ministackorg/ministack) and Docker Compose
 - **AWS CLI** — used by the local environment scripts to provision the emulated infrastructure
 
 No AWS account is needed; everything runs locally against the emulator with dummy credentials.
