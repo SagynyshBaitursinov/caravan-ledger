@@ -11,11 +11,34 @@ while acknowledging eventual consistency as a compromise. The business processes
 
 ## Design
 
+- `Transaction` and participating `Account`s state is eventually consistent. Between `started` and the last `settle`, funds are held, not spendable and not lost. No double spending is possible.
 - Every write into DB touches one entity only at a time: one `Account` or one `Transaction`. No locks, no DB transaction spanning several entities.
 - A `Transaction` is a choreography saga over `Account`s ([docs/transaction_saga.md](docs/transaction_saga.md)).
 - Different `Account`s and `Transaction`s can be stored in different data stores. Throughput grows with number of nodes in the cluster.
-- The price is eventual consistency: between `started` and the last `settle`, funds are held, not spendable and not lost.
-- The demo leaves out General Ledger, "hot" Account handling and Account snapshotting, while focusing on Transaction saga and entities' design around events-caravan.
+- The demo leaves out General Ledger, Idempotence guarantees, "hot" Account handling and other features while focusing on Transaction saga and entities' design around events-caravan.
+
+Solid arrows are writes, one entity at a time. Dashed arrows are events, delivered at least once.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant T as Transaction
+    participant H as Saga handlers
+    participant A as Accounts
+
+    C->>T: start
+    T-->>H: started
+    H->>A: hold each leg
+    alt all legs held
+        H->>T: complete
+        T-->>H: completed
+        H->>A: settle each leg
+    else any hold rejected
+        H->>T: abort
+        T-->>H: aborted
+        H->>A: rollback each leg
+    end
+```
 
 ## Modules
 
