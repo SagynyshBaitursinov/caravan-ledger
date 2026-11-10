@@ -1,5 +1,6 @@
 package dev.baitursinov.caravan.ledger.transaction.service;
 
+import dev.baitursinov.caravan.ledger.account.service.AccountService;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
 import dev.baitursinov.caravan.ledger.transaction.exception.TransactionNotFoundException;
@@ -16,9 +17,13 @@ import java.util.List;
 public class TransactionService {
 
   private final TransactionRepository transactionRepository;
+  private final AccountService accountService;
 
   public Transaction start(List<TransactionLeg> legs) {
     var transaction = Transaction.start(ZonedDateTime.now(), legs);
+    for (TransactionLeg leg : legs) {
+      accountService.get(leg.accountId()).validateCurrency(leg);
+    }
     transactionRepository.save(transaction);
     return transaction;
   }

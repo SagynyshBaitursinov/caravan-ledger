@@ -1,6 +1,7 @@
 package dev.baitursinov.caravan.ledger.test.transaction;
 
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
+import dev.baitursinov.caravan.ledger.transaction.exception.TransactionNotFoundException;
 import dev.baitursinov.caravan.ledger.transaction.service.settlement.TransactionSettlementService;
 import dev.baitursinov.caravan.ledger.transaction.service.clearing.TransactionClearingService;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
@@ -58,11 +59,11 @@ class TransactionRedeliveryTest extends AbstractTransactionTest {
     var unknown = TransactionId.random();
 
     assertThatThrownBy(() -> transactionClearingService.clear(unknown))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(TransactionNotFoundException.class);
     assertThatThrownBy(() -> transactionClearingService.rollback(unknown))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(TransactionNotFoundException.class);
     assertThatThrownBy(() -> transactionSettlementService.settle(unknown))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(TransactionNotFoundException.class);
   }
 
   private List<Long> versionsOf(TransactionId transactionId, AccountId... accountIds) {

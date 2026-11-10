@@ -2,8 +2,10 @@ package dev.baitursinov.caravan.ledger.transaction;
 
 import dev.baitursinov.caravan.ledger.account.entity.Account;
 import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
+import dev.baitursinov.caravan.ledger.account.service.AccountService;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
+import dev.baitursinov.caravan.ledger.transaction.service.TransactionService;
 import dev.baitursinov.caravan.ledger.transaction.service.settlement.TransactionSettlementService;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import org.joda.money.Money;
@@ -28,8 +30,10 @@ class TransactionSettlementServiceTest {
 
   private final TransactionRepository transactionRepository = mock(TransactionRepository.class);
   private final AccountRepository accountRepository = mock(AccountRepository.class);
-  private final TransactionSettlementService service =
-      new TransactionSettlementService(transactionRepository, accountRepository);
+  private final AccountService accountService = new AccountService(accountRepository);
+  private final TransactionSettlementService service = new TransactionSettlementService(
+      new TransactionService(transactionRepository, accountService),
+      accountService);
 
   @Test
   void redeliveryAfterPartialSettlementSettlesRemainingLegs() {
@@ -41,7 +45,6 @@ class TransactionSettlementServiceTest {
             TransactionLeg.of(from.id(), DEBIT, FIVE),
             TransactionLeg.of(to.id(), CREDIT, FIVE)));
     from.reserve(transaction);
-    to.validateCredit(transaction);
     transaction.complete();
     // The previous delivery saved the debit leg and failed before the credit leg
     from.settle(transaction);

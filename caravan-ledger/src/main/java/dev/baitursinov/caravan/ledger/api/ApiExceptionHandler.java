@@ -3,6 +3,7 @@ package dev.baitursinov.caravan.ledger.api;
 import dev.baitursinov.caravan.ledger.account.exception.AccountNotFoundException;
 import dev.baitursinov.caravan.ledger.common.InvalidInputException;
 import dev.baitursinov.caravan.ledger.transaction.exception.TransactionNotFoundException;
+import org.joda.money.CurrencyMismatchException;
 import org.joda.money.IllegalCurrencyException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -18,7 +19,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-  @ExceptionHandler({InvalidInputException.class, IllegalCurrencyException.class})
+  @ExceptionHandler({
+      InvalidInputException.class,
+      IllegalCurrencyException.class,
+      CurrencyMismatchException.class
+  })
   public ProblemDetail handleInvalidRequest(RuntimeException exception) {
     return ProblemDetail.forStatusAndDetail(BAD_REQUEST, exception.getMessage());
   }

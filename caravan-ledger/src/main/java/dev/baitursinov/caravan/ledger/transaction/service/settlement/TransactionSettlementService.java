@@ -1,8 +1,7 @@
 package dev.baitursinov.caravan.ledger.transaction.service.settlement;
 
-import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
-import dev.baitursinov.caravan.ledger.common.ConcurrentModificationRetry;
-import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
+import dev.baitursinov.caravan.ledger.account.service.AccountService;
+import dev.baitursinov.caravan.ledger.transaction.service.TransactionService;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import lombok.RequiredArgsConstructor;
@@ -12,25 +11,14 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TransactionSettlementService {
 
-  private final TransactionRepository transactionRepository;
-  private final AccountRepository accountRepository;
+  private final TransactionService transactionService;
+  private final AccountService accountService;
 
   public void settle(TransactionId transactionId) {
-    ConcurrentModificationRetry.run(() -> settleLegs(transactionId));
-  }
-
-  private void settleLegs(TransactionId transactionId) {
-    var transaction = transactionRepository.findBy(transactionId.value())
-        .orElseThrow(() -> new IllegalStateException("transactionId=%s not found".formatted(transactionId)));
+    var transaction = transactionService.get(transactionId);
 
     for (TransactionLeg leg : transaction.legs()) {
-      var account = accountRepository.findBy(leg.accountId().value())
-          .orElseThrow(() -> new IllegalStateException("accountId=%s not found".formatted(leg.accountId())));
-      if (account.hasSettledTransaction(transactionId)) {
-        continue;
-      }
-      account.settle(transaction);
-      accountRepository.save(account);
+      accountService.settle(leg.accountId(), transaction);
     }
   }
 }

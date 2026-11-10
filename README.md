@@ -34,7 +34,7 @@ sequenceDiagram
     participant A as Accounts
     C ->> T: start
     T -->> H: started
-    H ->> A: validate each credit, reserve each debit
+    H ->> A: reserve each debit
     alt all legs accepted
         H ->> T: complete
         T -->> H: completed

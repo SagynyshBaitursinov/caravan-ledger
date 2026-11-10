@@ -148,14 +148,24 @@ class TransactionControllerTest extends AbstractSpringBootTest {
   }
 
   @Test
-  void transferToUnknownAccountIsAborted() {
+  void transferToUnknownAccountIsRejected() {
     var from = openAccount("USD", true);
 
-    var transactionId = read(
-        startTransaction(transfer("USD", from, "unknown", "1")),
-        StartTransactionResponse.class).transactionId();
+    var result = startTransaction(transfer("USD", from, "unknown", "1"));
 
-    awaitEventually(() -> assertThat(getTransaction(transactionId).status()).isEqualTo(TransactionStatus.ABORTED));
+    assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
+    assertThat(result).bodyJson().extractingPath("$.detail").asString().contains("does not exist");
+  }
+
+  @Test
+  void transferInOtherCurrencyThanAccountIsRejected() {
+    var from = openAccount("USD", true);
+    var to = openAccount("EUR", false);
+
+    var result = startTransaction(transfer("USD", from, to, "1"));
+
+    assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+    assertThat(result).bodyJson().extractingPath("$.detail").asString().contains("Currencies differ");
   }
 
   @Test

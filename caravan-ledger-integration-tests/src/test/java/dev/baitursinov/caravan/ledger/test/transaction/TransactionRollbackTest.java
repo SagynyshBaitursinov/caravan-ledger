@@ -1,14 +1,11 @@
 package dev.baitursinov.caravan.ledger.test.transaction;
 
-import dev.baitursinov.caravan.ledger.account.entity.Account;
-import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import org.junit.jupiter.api.Test;
 
 import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
 import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.joda.money.CurrencyUnit.EUR;
 
 class TransactionRollbackTest extends AbstractTransactionTest {
 
@@ -42,41 +39,6 @@ class TransactionRollbackTest extends AbstractTransactionTest {
     // the credit leg reserves nothing, so nothing is released on its account
     assertThat(reload(to).hasRolledBackTransaction(transactionId)).isFalse();
     assertThat(reload(to).version()).isEqualTo(toVersionBefore);
-  }
-
-  @Test
-  void rejectedCreditAbortsBeforeAnyDebitIsReserved() {
-    var from = openFundedAccount(TEN);
-    var missingAccountId = AccountId.random();
-    long fromVersionBefore = reload(from).version();
-
-    var transactionId = startTransaction(
-        TransactionLeg.of(from.id(), DEBIT, TEN),
-        TransactionLeg.of(missingAccountId, CREDIT, TEN));
-    var transaction = awaitRolledBack(transactionId);
-
-    assertThat(transaction.isCompleted()).isFalse();
-    Account reloadedAccount = reload(from);
-    assertThat(reloadedAccount.balance()).isEqualTo(TEN);
-    assertThat(reloadedAccount.availableBalance()).isEqualTo(TEN);
-    assertThat(reloadedAccount.hasReservedTransaction(transactionId)).isFalse();
-    // only the rolled-back marker is recorded, the debit was never reserved
-    assertThat(reloadedAccount.version()).isEqualTo(fromVersionBefore + 1);
-  }
-
-  @Test
-  void currencyMismatchAbortsTransactionAndReleasesReservations() {
-    var from = openFundedAccount(TEN);
-    var euroAccount = Account.open(false, EUR);
-    accountRepository.save(euroAccount);
-
-    var transactionId = initiateTransfer(from, euroAccount, TEN);
-    var transaction = awaitRolledBack(transactionId);
-
-    assertThat(transaction.isCompleted()).isFalse();
-    assertThat(reload(from).availableBalance()).isEqualTo(TEN);
-    assertThat(reload(euroAccount).balance().getCurrencyUnit()).isEqualTo(EUR);
-    assertThat(reload(euroAccount).balance().isZero()).isTrue();
   }
 
   @Test

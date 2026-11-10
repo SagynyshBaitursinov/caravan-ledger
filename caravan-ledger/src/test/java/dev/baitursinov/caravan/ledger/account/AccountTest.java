@@ -60,28 +60,17 @@ class AccountTest {
   }
 
   @Test
-  void validatingCreditRecordsNothing() {
-    var transaction = transaction(CREDIT, TEN);
+  void validatingCurrencyRecordsNothing() {
+    for (Direction direction : Direction.values()) {
+      account.validateCurrency(TransactionLeg.of(account.id(), direction, TEN));
+    }
 
-    account.validateCredit(transaction);
-
-    assertThat(account.version()).isEqualTo(1);
-    assertThat(account.hasReservedTransaction(transaction.id())).isFalse();
-  }
-
-  @Test
-  void validatingDebitIsRejected() {
-    var transaction = transaction(DEBIT, TEN);
-
-    assertThatThrownBy(() -> account.validateCredit(transaction))
-        .isInstanceOf(IllegalArgumentException.class);
     assertThat(account.version()).isEqualTo(1);
   }
 
   @Test
   void settlingCreditsAccount() {
     var transaction = transaction(CREDIT, TEN);
-    account.validateCredit(transaction);
 
     account.settle(transaction);
 
@@ -115,11 +104,8 @@ class AccountTest {
   void reservingAndSettlingSameTransactionTwiceIsIgnored() {
     var transaction = transaction(CREDIT, TEN);
 
-    account.validateCredit(transaction);
-    account.validateCredit(transaction);
     account.settle(transaction);
     account.settle(transaction);
-    account.validateCredit(transaction);
 
     assertThat(account.balance()).isEqualTo(TEN);
     assertThat(account.version()).isEqualTo(2);
@@ -159,11 +145,15 @@ class AccountTest {
   void rejectsAmountInOtherCurrencyWithoutChangingState() {
     for (Direction direction : Direction.values()) {
       var transaction = transaction(direction, Money.of(EUR, 10));
+      var leg = transaction.legFor(account.id()).orElseThrow();
 
-      assertThatThrownBy(() -> reserveOrValidate(account, transaction))
+      assertThatThrownBy(() -> account.validateCurrency(leg))
+          .isInstanceOf(CurrencyMismatchException.class);
+      assertThatThrownBy(() -> reserveAndSettle(account, transaction))
           .isInstanceOf(CurrencyMismatchException.class);
 
       assertThat(account.hasReservedTransaction(transaction.id())).isFalse();
+      assertThat(account.hasSettledTransaction(transaction.id())).isFalse();
     }
     assertThat(account.version()).isEqualTo(1);
     assertThat(account.availableBalance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
@@ -177,12 +167,10 @@ class AccountTest {
     assertThat(eurAccount.balance()).isEqualTo(Money.zero(EUR));
     assertThat(eurAccount.getCurrencyUnit()).isEqualTo(EUR);
 
-    var credit = transaction(eurAccount, CREDIT, eurTen);
-    eurAccount.validateCredit(credit);
-    eurAccount.settle(credit);
+    eurAccount.settle(transaction(eurAccount, CREDIT, eurTen));
 
     assertThat(eurAccount.balance()).isEqualTo(eurTen);
-    assertThatThrownBy(() -> eurAccount.validateCredit(transaction(eurAccount, CREDIT, TEN)))
+    assertThatThrownBy(() -> eurAccount.validateCurrency(TransactionLeg.of(eurAccount.id(), CREDIT, TEN)))
         .isInstanceOf(CurrencyMismatchException.class);
   }
 
@@ -208,15 +196,6 @@ class AccountTest {
     reserveAndSettle(noOverdraft, transaction(noOverdraft, DEBIT, TEN));
 
     assertThat(noOverdraft.balance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
-  }
-
-  @Test
-  void validatedCreditDoesNotCoverDebit() {
-    var noOverdraft = Account.open(false);
-    noOverdraft.validateCredit(transaction(noOverdraft, CREDIT, TEN));
-
-    assertThatThrownBy(() -> noOverdraft.reserve(transaction(noOverdraft, DEBIT, FIVE)))
-        .isInstanceOf(InsufficientFundsException.class);
   }
 
   @Test
@@ -322,15 +301,10 @@ class AccountTest {
   }
 
   private static void reserveAndSettle(Account target, Transaction transaction) {
-    reserveOrValidate(target, transaction);
-    target.settle(transaction);
-  }
-
-  private static void reserveOrValidate(Account target, Transaction transaction) {
-    switch (transaction.legFor(target.id()).orElseThrow().direction()) {
-      case DEBIT -> target.reserve(transaction);
-      case CREDIT -> target.validateCredit(transaction);
+    if (transaction.legFor(target.id()).orElseThrow().direction() == DEBIT) {
+      target.reserve(transaction);
     }
+    target.settle(transaction);
   }
 
   private Transaction transaction(Direction direction, Money amount) {

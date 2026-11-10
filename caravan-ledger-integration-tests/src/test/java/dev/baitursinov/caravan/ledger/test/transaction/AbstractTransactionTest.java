@@ -102,7 +102,6 @@ abstract class AbstractTransactionTest extends AbstractSpringBootTest {
 
   protected Stream<AccountId> debitAccountIds(Transaction transaction) {
     return transaction.debitLegs().stream()
-        .map(TransactionLeg::accountId)
-        .filter(accountId -> accountRepository.findBy(accountId.value()).isPresent());
+        .map(TransactionLeg::accountId);
   }
 }

@@ -28,7 +28,6 @@ import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfigu
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.OPENED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_ROLLED_BACK;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_SETTLED;
-import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
 import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 
 @EntityName(Account.ENTITY_NAME)
@@ -88,17 +87,7 @@ public class Account extends EventSourcedEntity {
         new ReservationDetails(transaction.id(), leg.amount()));
   }
 
-  public void validateCredit(Transaction transaction) {
-    TransactionLeg leg = legFor(transaction);
-    if (leg.direction() != CREDIT) {
-      throw new IllegalArgumentException(
-          "%s has a %s leg on %s, not a credit".formatted(transaction, leg.direction(), this));
-    }
-
-    validateCurrency(leg);
-  }
-
-  private void validateCurrency(TransactionLeg leg) {
+  public void validateCurrency(TransactionLeg leg) {
     if (!leg.amount().getCurrencyUnit().equals(this.getCurrencyUnit())) {
       throw new CurrencyMismatchException(this.getCurrencyUnit(), leg.amount().getCurrencyUnit());
     }
@@ -123,6 +112,7 @@ public class Account extends EventSourcedEntity {
       throw new IllegalStateException(
           "%s is not reserved on %s".formatted(transaction, this));
     }
+    validateCurrency(leg);
 
     recordEvent(
         TRANSACTION_SETTLED,
