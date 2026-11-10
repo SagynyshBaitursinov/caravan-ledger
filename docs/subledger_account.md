@@ -7,11 +7,13 @@
 ```
 opened ─► balance-reserved ─► transaction-settled
       │                   └─► transaction-rolled-back
+      ├─► reservation-rejected ─► transaction-rolled-back
       └─► transaction-settled (credit)
 ```
 
 - `opened`: fixes `currency` and possibility of overdrafts (`overdraftAllowed`).
 - `balance-reserved`: reserves the amount of one `DEBIT` `TransactionLeg`.
+- `reservation-rejected`: rejects one `DEBIT` `TransactionLeg` above `availableBalance`. Carries the `reason`.
 - `transaction-settled`: records `SettlementDetails` of one `TransactionLeg` into `balance`, releasing the reservation
   of a `DEBIT`.
 - `transaction-rolled-back`: rolls back one `DEBIT` `TransactionLeg`, releasing its reservation if any.
@@ -26,10 +28,9 @@ opened ─► balance-reserved ─► transaction-settled
 ## Rules
 
 - One settlement per `Transaction` per `Account`.
-- `reserve` and `validateCredit` reject a leg in another currency (`CurrencyMismatchException`).
-- `reserve` rejects a `DEBIT` above `availableBalance` unless `overdraftAllowed` (`InsufficientFundsException`).
+- `reserve` and `settle` reject a leg in another currency (`CurrencyMismatchException`).
+- `reserve` rejects a `DEBIT` above `availableBalance` unless `overdraftAllowed` (`reservation-rejected`).
 - `reserve` accepts a `DEBIT` only.
-- `validateCredit` accepts a `CREDIT` only. It validates the leg, no event is recorded.
 - `rollback` accepts a `DEBIT` only.
 - `settle` of a `DEBIT` requires a reservation.
 - `settle` and `rollback` are mutually exclusive per `Transaction`.
@@ -41,7 +42,10 @@ Commands arrive at least once, in any order.
 - One `Account` cannot be modified in parallel due to the framework constraints. No lost updates are possible.
 - Changes happening to single Account and events published on those are single unit of consistency.
 - `reserve`, `settle`, `rollback` are idempotent per `TransactionId`.
-- `balanceReservations`, `settledTransactions` and `rolledBackTransactions` are the dedup markers.
+- `balanceReservations`, `rejectedTransactions`, `settledTransactions` and `rolledBackTransactions` are the dedup
+  markers.
+- A rejection is saved like a reservation, so a rejection decided on a stale `Account` fails to be saved and is
+  decided again.
 - `rollback` is accepted before `reserve`. The marker makes a late `reserve` a no-op, so funds of an aborted
   `Transaction` are never reserved.
 

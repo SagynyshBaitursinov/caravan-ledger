@@ -1,7 +1,6 @@
 package dev.baitursinov.caravan.ledger.account;
 
 import dev.baitursinov.caravan.ledger.account.entity.Account;
-import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.common.value.Direction;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
@@ -180,12 +179,43 @@ class AccountTest {
     reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, FIVE));
 
     Transaction failingTransaction = transaction(noOverdraft, DEBIT, TEN);
-    assertThatThrownBy(() -> noOverdraft.reserve(failingTransaction))
-        .isInstanceOf(InsufficientFundsException.class);
+    noOverdraft.reserve(failingTransaction);
 
+    assertThat(noOverdraft.hasRejectedTransaction(failingTransaction.id())).isTrue();
     assertThat(noOverdraft.balance()).isEqualTo(FIVE);
-    assertThat(noOverdraft.version()).isEqualTo(2);
+    assertThat(noOverdraft.availableBalance()).isEqualTo(FIVE);
+    assertThat(noOverdraft.version()).isEqualTo(3);
     assertThat(noOverdraft.hasReservedTransaction(failingTransaction.id())).isFalse();
+  }
+
+  @Test
+  void rejectedReservationIsNotDecidedAgain() {
+    var noOverdraft = Account.open(false);
+    var transaction = transaction(noOverdraft, DEBIT, TEN);
+    noOverdraft.reserve(transaction);
+
+    // funds arriving later do not turn a recorded rejection into a reservation
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
+    noOverdraft.reserve(transaction);
+
+    assertThat(noOverdraft.hasRejectedTransaction(transaction.id())).isTrue();
+    assertThat(noOverdraft.hasReservedTransaction(transaction.id())).isFalse();
+    assertThat(noOverdraft.version()).isEqualTo(3);
+  }
+
+  @Test
+  void replayedReservationIsNotRejectedByItsOwnReservedFunds() {
+    var noOverdraft = Account.open(false);
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
+    var reserved = transaction(noOverdraft, DEBIT, TEN);
+    noOverdraft.reserve(reserved);
+    long versionAfterReservation = noOverdraft.version();
+
+    noOverdraft.reserve(reserved);
+
+    assertThat(noOverdraft.hasReservedTransaction(reserved.id())).isTrue();
+    assertThat(noOverdraft.hasRejectedTransaction(reserved.id())).isFalse();
+    assertThat(noOverdraft.version()).isEqualTo(versionAfterReservation);
   }
 
   @Test
@@ -206,8 +236,9 @@ class AccountTest {
 
     assertThat(noOverdraft.balance()).isEqualTo(TEN);
     assertThat(noOverdraft.availableBalance()).isEqualTo(FIVE);
-    assertThatThrownBy(() -> noOverdraft.reserve(transaction(noOverdraft, DEBIT, TEN)))
-        .isInstanceOf(InsufficientFundsException.class);
+    var rejected = transaction(noOverdraft, DEBIT, TEN);
+    noOverdraft.reserve(rejected);
+    assertThat(noOverdraft.hasRejectedTransaction(rejected.id())).isTrue();
     noOverdraft.reserve(transaction(noOverdraft, DEBIT, FIVE));
     assertThat(noOverdraft.availableBalance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
   }

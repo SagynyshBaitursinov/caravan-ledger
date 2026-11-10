@@ -1,9 +1,6 @@
 package dev.baitursinov.caravan.ledger.transaction.service.clearing;
 
-import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
 import dev.baitursinov.caravan.ledger.account.service.AccountService;
-import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
-import dev.baitursinov.caravan.ledger.transaction.entity.TransactionRepository;
 import dev.baitursinov.caravan.ledger.transaction.service.TransactionService;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
@@ -14,7 +11,6 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TransactionClearingService {
 
-  private final TransactionRepository transactionRepository;
   private final TransactionService transactionService;
   private final AccountService accountService;
 
@@ -24,26 +20,17 @@ public class TransactionClearingService {
       return;
     }
 
-    try {
-      for (TransactionLeg leg : transaction.debitLegs()) {
-        accountService.reserve(leg.accountId(), transaction);
+    for (TransactionLeg leg : transaction.debitLegs()) {
+      boolean isReserved = accountService.reserve(leg.accountId(), transaction);
+      if (!isReserved) {
+        transactionService.abort(
+            transaction,
+            "accountId=%s rejected reservation of balance".formatted(leg.accountId()));
+        return;
       }
-    } catch (InsufficientFundsException exception) {
-      abort(transaction, exception.getMessage());
-      return;
     }
 
-    complete(transaction);
-  }
-
-  private void complete(Transaction transaction) {
-    transaction.complete();
-    transactionRepository.save(transaction);
-  }
-
-  private void abort(Transaction transaction, String reason) {
-    transaction.abort(reason);
-    transactionRepository.save(transaction);
+    transactionService.complete(transaction);
   }
 
   public void rollback(TransactionId transactionId) {

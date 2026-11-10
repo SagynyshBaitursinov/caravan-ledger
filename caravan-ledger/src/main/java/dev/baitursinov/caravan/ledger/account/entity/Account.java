@@ -3,10 +3,10 @@ package dev.baitursinov.caravan.ledger.account.entity;
 import dev.baitursinov.caravan.event.sourcing.EntityName;
 import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
 import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
-import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.account.value.AccountOpeningDetails;
 import dev.baitursinov.caravan.ledger.account.value.ReservationDetails;
+import dev.baitursinov.caravan.ledger.account.value.ReservationRejected;
 import dev.baitursinov.caravan.ledger.account.value.SettlementDetails;
 import dev.baitursinov.caravan.ledger.account.value.TransactionIdHolder;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.BALANCE_RESERVED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.OPENED;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.RESERVATION_REJECTED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_ROLLED_BACK;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_SETTLED;
 import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
@@ -36,9 +37,11 @@ public class Account extends EventSourcedEntity {
 
   public static final String ENTITY_NAME = "account";
   public static final CurrencyUnit DEFAULT_CURRENCY = CurrencyUnit.USD;
+  public static final String INSUFFICIENT_BALANCE = "insufficient balance";
 
   final AccountId id;
   final Map<TransactionId, Money> balanceReservations = new HashMap<>();
+  final Set<TransactionId> rejectedTransactions = new HashSet<>();
   final Set<TransactionId> settledTransactions = new HashSet<>();
   final Set<TransactionId> rolledBackTransactions = new HashSet<>();
 
@@ -72,14 +75,18 @@ public class Account extends EventSourcedEntity {
 
     if (hasReservedTransaction(transaction.id())
         || hasSettledTransaction(transaction.id())
-        || hasRolledBackTransaction(transaction.id())) {
+        || hasRolledBackTransaction(transaction.id())
+        || hasRejectedTransaction(transaction.id())) {
       return;
     }
 
     validateCurrency(leg);
 
-    if (!overdraftAllowed && availableBalance().isLessThan(leg.amount())) {
-      throw new InsufficientFundsException(id, availableBalance(), leg.amount());
+    if (availableBalance().isLessThan(leg.amount()) && !isOverdraftAllowed()) {
+      recordEvent(
+          RESERVATION_REJECTED,
+          new ReservationRejected(transaction.id(), INSUFFICIENT_BALANCE));
+      return;
     }
 
     recordEvent(
@@ -174,6 +181,10 @@ public class Account extends EventSourcedEntity {
 
   public boolean hasReservedTransaction(TransactionId transactionId) {
     return this.balanceReservations.containsKey(transactionId);
+  }
+
+  public boolean hasRejectedTransaction(TransactionId transactionId) {
+    return this.rejectedTransactions.contains(transactionId);
   }
 
   private TransactionLeg legFor(Transaction transaction) {

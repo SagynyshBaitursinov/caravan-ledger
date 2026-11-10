@@ -35,6 +35,7 @@ class TransactionRollbackTest extends AbstractTransactionTest {
 
     // the debit leg fails to be reserved, yet it is marked so that a replayed reservation is ignored
     assertThat(reload(from).hasReservedTransaction(transactionId)).isFalse();
+    assertThat(reload(from).hasRejectedTransaction(transactionId)).isTrue();
     assertThat(reload(from).hasRolledBackTransaction(transactionId)).isTrue();
     // the credit leg reserves nothing, so nothing is released on its account
     assertThat(reload(to).hasRolledBackTransaction(transactionId)).isFalse();

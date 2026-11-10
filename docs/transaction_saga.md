@@ -11,8 +11,8 @@ started ─► completed
 ```
 
 - `started`: carries the `TransactionDefinition` (`startTimestamp`, `legs`).
-- `completed`: every debit is reserved and every credit is validated on corresponding accounts.
-- `aborted`: some legs could not be reserved or validated. Carries the `reason`.
+- `completed`: every debit is reserved on corresponding accounts.
+- `aborted`: some debit is rejected on corresponding account. Carries the `reason`.
 - `completed` and `aborted` are terminal and mutually exclusive. Optimistic concurrency on the entity lets exactly one
   win.
 
@@ -23,15 +23,16 @@ started ─► completed
     - at least one leg;
     - one leg per `Account`;
     - one currency;
-    - credits and debits sum up to zero.
+    - credits and debits sum up to zero;
+    - every `Account` exists and has the currency of the legs.
 
 ## Flow
 
-| Event       | Handler                       | Step                                                                                                   |
-|-------------|-------------------------------|--------------------------------------------------------------------------------------------------------|
-| `started`   | `TransactionStartedHandler`   | Clearing: validate every credit, then `reserve` every debit, then `complete`. Any rejection → `abort`. |
-| `completed` | `TransactionCompletedHandler` | Settlement: `settle` every leg.                                                                        |
-| `aborted`   | `TransactionAbortedHandler`   | Clearing: `rollback` every debit, reserved or not.                                                     |
+| Event       | Handler                       | Step                                                                       |
+|-------------|-------------------------------|----------------------------------------------------------------------------|
+| `started`   | `TransactionStartedHandler`   | Clearing: `reserve` every debit, then `complete`. Any rejection → `abort`. |
+| `completed` | `TransactionCompletedHandler` | Settlement: `settle` every leg.                                            |
+| `aborted`   | `TransactionAbortedHandler`   | Clearing: `rollback` every debit, reserved or not.                         |
 
 - Each step writes to one entity at a time.
 - Each step reloads the `Transaction` and acts on its current state, not on the event payload.

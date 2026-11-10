@@ -19,6 +19,11 @@ public class TransactionService {
   private final TransactionRepository transactionRepository;
   private final AccountService accountService;
 
+  public Transaction get(TransactionId transactionId) {
+    return transactionRepository.findBy(transactionId.value())
+        .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+  }
+
   public Transaction start(List<TransactionLeg> legs) {
     var transaction = Transaction.start(ZonedDateTime.now(), legs);
     for (TransactionLeg leg : legs) {
@@ -28,8 +33,13 @@ public class TransactionService {
     return transaction;
   }
 
-  public Transaction get(TransactionId transactionId) {
-    return transactionRepository.findBy(transactionId.value())
-        .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+  public void complete(Transaction transaction) {
+    transaction.complete();
+    transactionRepository.save(transaction);
+  }
+
+  public void abort(Transaction transaction, String reason) {
+    transaction.abort(reason);
+    transactionRepository.save(transaction);
   }
 }

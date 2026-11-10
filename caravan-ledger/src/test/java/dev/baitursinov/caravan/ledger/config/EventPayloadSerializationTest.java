@@ -6,6 +6,7 @@ import dev.baitursinov.caravan.ledger.account.entity.Account;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.account.value.AccountOpeningDetails;
 import dev.baitursinov.caravan.ledger.account.value.ReservationDetails;
+import dev.baitursinov.caravan.ledger.account.value.ReservationRejected;
 import dev.baitursinov.caravan.ledger.account.value.SettlementDetails;
 import dev.baitursinov.caravan.ledger.account.value.TransactionIdHolder;
 import dev.baitursinov.caravan.ledger.config.jackson.JacksonConfiguration;
@@ -34,6 +35,7 @@ import java.util.stream.Stream;
 
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.BALANCE_RESERVED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.OPENED;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.RESERVATION_REJECTED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_ROLLED_BACK;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_SETTLED;
 import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
@@ -78,6 +80,10 @@ class EventPayloadSerializationTest {
             new ReservationDetails(TRANSACTION_ID, TEN),
             """
                 {"transactionId": "transaction-1", "amount": %s}""".formatted(TEN_USD_JSON)),
+        new Case(Account.ENTITY_NAME, RESERVATION_REJECTED, "",
+            new ReservationRejected(TRANSACTION_ID, "no funds"),
+            """
+                {"transactionId": "transaction-1", "reason": "no funds"}"""),
         new Case(Account.ENTITY_NAME, TRANSACTION_SETTLED, "",
             SettlementDetails.builder()
                 .transactionId(TRANSACTION_ID)

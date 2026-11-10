@@ -16,6 +16,11 @@ public class AccountService {
 
   private final AccountRepository accountRepository;
 
+  public Account get(AccountId accountId) {
+    return accountRepository.findBy(accountId.value())
+        .orElseThrow(() -> new AccountNotFoundException(accountId));
+  }
+
   public Account open(boolean overdraftAllowed,
                       CurrencyUnit currency) {
     var account = Account.open(overdraftAllowed, currency);
@@ -23,16 +28,12 @@ public class AccountService {
     return account;
   }
 
-  public Account get(AccountId accountId) {
-    return accountRepository.findBy(accountId.value())
-        .orElseThrow(() -> new AccountNotFoundException(accountId));
-  }
-
   @RetryOnConcurrentModification
-  public void reserve(AccountId accountId, Transaction transaction) {
+  public boolean reserve(AccountId accountId, Transaction transaction) {
     var account = get(accountId);
     account.reserve(transaction);
     accountRepository.save(account);
+    return account.hasReservedTransaction(transaction.id());
   }
 
   @RetryOnConcurrentModification

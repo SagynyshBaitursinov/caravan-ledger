@@ -1,13 +1,13 @@
 package dev.baitursinov.caravan.ledger.transaction.entity;
 
+import dev.baitursinov.caravan.event.Event;
+import dev.baitursinov.caravan.event.sourcing.applying.ApplyEvent;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionAbortionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionCompletionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionDefinition;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionStatus;
-import dev.baitursinov.caravan.event.Event;
-import dev.baitursinov.caravan.event.sourcing.applying.ApplyEvent;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -23,6 +23,7 @@ final class TransactionEventApplier {
   static void applyTransactionStarted(Transaction transaction,
                                       Event<TransactionDefinition> transactionStartedEvent) {
     var transactionDefinition = transactionStartedEvent.payload();
+
     transaction.startTimestamp = transactionDefinition.transactionStartTimestamp();
     transaction.legs = transactionDefinition.legs();
     transaction.legsByAccountId = createLegsByAccountId(transactionDefinition);

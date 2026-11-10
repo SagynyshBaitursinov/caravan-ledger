@@ -143,7 +143,7 @@ class TransactionControllerTest extends AbstractSpringBootTest {
         StartTransactionResponse.class).transactionId();
 
     awaitEventually(() -> assertThat(getTransaction(transactionId).status()).isEqualTo(TransactionStatus.ABORTED));
-    assertThat(getTransaction(transactionId).abortedReason()).contains("cannot debit");
+    assertThat(getTransaction(transactionId).abortedReason()).contains("rejected reservation of balance");
     assertThat(getAccount(to).balance()).isEqualTo(Money.parse("USD 0"));
   }
 

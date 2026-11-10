@@ -4,12 +4,14 @@ import dev.baitursinov.caravan.event.Event;
 import dev.baitursinov.caravan.event.sourcing.applying.ApplyEvent;
 import dev.baitursinov.caravan.ledger.account.value.AccountOpeningDetails;
 import dev.baitursinov.caravan.ledger.account.value.ReservationDetails;
+import dev.baitursinov.caravan.ledger.account.value.ReservationRejected;
 import dev.baitursinov.caravan.ledger.account.value.SettlementDetails;
 import dev.baitursinov.caravan.ledger.account.value.TransactionIdHolder;
 import org.joda.money.Money;
 
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.BALANCE_RESERVED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.OPENED;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.RESERVATION_REJECTED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_ROLLED_BACK;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_SETTLED;
 
@@ -27,17 +29,25 @@ final class AccountEventApplier {
   @ApplyEvent(BALANCE_RESERVED)
   static void applyBalanceReserved(Account account,
                                    Event<ReservationDetails> event) {
-    ReservationDetails reservationDetails = event.payload();
+    var reservationDetails = event.payload();
 
     account.balanceReservations.put(
         reservationDetails.transactionId(),
         reservationDetails.amount());
   }
 
+  @ApplyEvent(RESERVATION_REJECTED)
+  static void applyReservationRejected(Account account,
+                                       Event<ReservationRejected> event) {
+    var details = event.payload();
+
+    account.rejectedTransactions.add(details.transactionId());
+  }
+
   @ApplyEvent(TRANSACTION_SETTLED)
   static void applyTransactionSettled(Account account,
                                       Event<SettlementDetails> event) {
-    SettlementDetails settlementDetails = event.payload();
+    var settlementDetails = event.payload();
 
     account.settledTransactions.add(settlementDetails.transactionId());
     account.balanceReservations.remove(settlementDetails.transactionId());
