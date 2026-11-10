@@ -4,6 +4,7 @@ import dev.baitursinov.caravan.event.sourcing.EntityName;
 import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
 import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
+import dev.baitursinov.caravan.ledger.common.value.Direction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionAbortionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionCompletionDetails;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionDefinition;
@@ -13,13 +14,13 @@ import dev.baitursinov.caravan.ledger.transaction.value.TransactionStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.time.ZonedDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration.ABORTED;
 import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration.COMPLETED;
 import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration.STARTED;
@@ -29,10 +30,6 @@ import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEvent
 public class Transaction extends EventSourcedEntity {
 
   public static final String ENTITY_NAME = "transaction";
-
-  private static final Comparator<TransactionLeg> DEBITS_FIRST =
-      Comparator.<TransactionLeg, Boolean>comparing(leg -> leg.type() != DEBIT)
-          .thenComparing(leg -> leg.accountId().value());
 
   final TransactionId id;
 
@@ -52,16 +49,12 @@ public class Transaction extends EventSourcedEntity {
     Objects.requireNonNull(startTimestamp, "startTimestamp");
     Objects.requireNonNull(legs, "legs");
 
-    List<TransactionLeg> sortedLegs = legs.stream()
-        .sorted(DEBITS_FIRST)
-        .toList();
-
-    TransactionValidator.validate(sortedLegs);
+    TransactionValidator.validate(legs);
 
     var transaction = new Transaction(TransactionId.random());
     transaction.recordEvent(
         STARTED,
-        TransactionDefinition.of(startTimestamp, sortedLegs));
+        TransactionDefinition.of(startTimestamp, legs));
     return transaction;
   }
 
@@ -112,6 +105,20 @@ public class Transaction extends EventSourcedEntity {
 
   public List<TransactionLeg> legs() {
     return legs;
+  }
+
+  public List<TransactionLeg> debitLegs() {
+    return legsOf(DEBIT);
+  }
+
+  public List<TransactionLeg> creditLegs() {
+    return legsOf(CREDIT);
+  }
+
+  private List<TransactionLeg> legsOf(Direction direction) {
+    return legs.stream()
+        .filter(leg -> leg.direction() == direction)
+        .toList();
   }
 
   public Optional<TransactionLeg> legFor(AccountId accountId) {

@@ -33,7 +33,7 @@ final class TransactionValidator {
         throw new InvalidInputException(
             "Legs must share one currency, got " + currency + " and " + leg.amount().getCurrencyUnit());
       }
-      balance = switch (leg.type()) {
+      balance = switch (leg.direction()) {
         case CREDIT -> balance.plus(leg.amount());
         case DEBIT -> balance.minus(leg.amount());
       };

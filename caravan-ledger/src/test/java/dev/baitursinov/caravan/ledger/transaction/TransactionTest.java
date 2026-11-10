@@ -1,7 +1,7 @@
 package dev.baitursinov.caravan.ledger.transaction;
 
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
-import dev.baitursinov.caravan.ledger.account.value.LedgerEntryType;
+import dev.baitursinov.caravan.ledger.common.value.Direction;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
@@ -14,8 +14,8 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static dev.baitursinov.caravan.ledger.account.entity.Account.DEFAULT_CURRENCY;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -38,23 +38,23 @@ class TransactionTest {
 
     assertThat(transaction.status()).isEqualTo(TransactionStatus.PENDING);
     assertThat(transaction.startTimestamp()).isEqualTo(startTimestamp);
-    assertThat(transaction.legs()).containsExactlyInAnyOrderElementsOf(legs);
+    assertThat(transaction.legs()).containsExactlyElementsOf(legs);
     legs.forEach(leg -> assertThat(transaction.legFor(leg.accountId())).contains(leg));
     assertThat(transaction.legFor(AccountId.random())).isEmpty();
     assertThat(transaction.version()).isEqualTo(1);
   }
 
   @Test
-  void startPutsDebitsBeforeCreditsOrderedByAccountId() {
-    var credit1 = leg(AccountId.of("a-1"), CREDIT, FIVE);
-    var credit2 = leg(AccountId.of("a-3"), CREDIT, FIVE);
-    var debit1 = leg(AccountId.of("a-2"), DEBIT, FIVE);
-    var debit2 = leg(AccountId.of("a-4"), DEBIT, FIVE);
+  void splitsLegsByDirectionKeepingOrder() {
+    var credit1 = leg(AccountId.random(), CREDIT, FIVE);
+    var debit1 = leg(AccountId.random(), DEBIT, FIVE);
+    var credit2 = leg(AccountId.random(), CREDIT, FIVE);
+    var debit2 = leg(AccountId.random(), DEBIT, FIVE);
 
-    var transaction =
-        Transaction.start(startTimestamp, List.of(credit2, debit2, credit1, debit1));
+    var transaction = Transaction.start(startTimestamp, List.of(credit1, debit1, credit2, debit2));
 
-    assertThat(transaction.legs()).containsExactly(debit1, debit2, credit1, credit2);
+    assertThat(transaction.debitLegs()).containsExactly(debit1, debit2);
+    assertThat(transaction.creditLegs()).containsExactly(credit1, credit2);
   }
 
   @Test
@@ -150,7 +150,7 @@ class TransactionTest {
         .hasMessageContaining(message);
   }
 
-  private TransactionLeg leg(AccountId accountId, LedgerEntryType type, Money amount) {
-    return TransactionLeg.of(accountId, type, amount);
+  private TransactionLeg leg(AccountId accountId, Direction direction, Money amount) {
+    return TransactionLeg.of(accountId, direction, amount);
   }
 }

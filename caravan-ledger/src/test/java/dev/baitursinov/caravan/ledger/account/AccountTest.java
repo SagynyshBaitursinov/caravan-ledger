@@ -3,7 +3,7 @@ package dev.baitursinov.caravan.ledger.account;
 import dev.baitursinov.caravan.ledger.account.entity.Account;
 import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
-import dev.baitursinov.caravan.ledger.account.value.LedgerEntryType;
+import dev.baitursinov.caravan.ledger.common.value.Direction;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
@@ -15,8 +15,8 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static dev.baitursinov.caravan.ledger.account.entity.Account.DEFAULT_CURRENCY;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.joda.money.CurrencyUnit.EUR;
@@ -35,38 +35,66 @@ class AccountTest {
     assertThat(account.entityName()).isEqualTo(Account.ENTITY_NAME);
     assertThat(account.version()).isEqualTo(1);
     assertThat(account.balance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
-    assertThat(account.hasHeldTransaction(TransactionId.random())).isFalse();
+    assertThat(account.hasReservedTransaction(TransactionId.random())).isFalse();
   }
 
   @Test
-  void holdingTransactionDoesNotChangeBalance() {
-    var transaction = transaction(CREDIT, TEN);
+  void reservingTransactionDoesNotChangeBalance() {
+    var transaction = transaction(DEBIT, TEN);
 
-    account.hold(transaction);
+    account.reserve(transaction);
 
     assertThat(account.balance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
     assertThat(account.version()).isEqualTo(2);
-    assertThat(account.hasHeldTransaction(transaction.id())).isTrue();
+    assertThat(account.hasReservedTransaction(transaction.id())).isTrue();
     assertThat(account.hasSettledTransaction(transaction.id())).isFalse();
+  }
+
+  @Test
+  void reservingCreditIsRejected() {
+    var transaction = transaction(CREDIT, TEN);
+
+    assertThatThrownBy(() -> account.reserve(transaction))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(account.version()).isEqualTo(1);
+  }
+
+  @Test
+  void validatingCreditRecordsNothing() {
+    var transaction = transaction(CREDIT, TEN);
+
+    account.validateCredit(transaction);
+
+    assertThat(account.version()).isEqualTo(1);
+    assertThat(account.hasReservedTransaction(transaction.id())).isFalse();
+  }
+
+  @Test
+  void validatingDebitIsRejected() {
+    var transaction = transaction(DEBIT, TEN);
+
+    assertThatThrownBy(() -> account.validateCredit(transaction))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(account.version()).isEqualTo(1);
   }
 
   @Test
   void settlingCreditsAccount() {
     var transaction = transaction(CREDIT, TEN);
-    account.hold(transaction);
+    account.validateCredit(transaction);
 
     account.settle(transaction);
 
     assertThat(account.balance()).isEqualTo(TEN);
-    assertThat(account.version()).isEqualTo(3);
-    assertThat(account.hasHeldTransaction(transaction.id())).isFalse();
+    assertThat(account.version()).isEqualTo(2);
+    assertThat(account.hasReservedTransaction(transaction.id())).isFalse();
     assertThat(account.hasSettledTransaction(transaction.id())).isTrue();
   }
 
   @Test
   void settlingDebitsAccount() {
     var transaction = transaction(DEBIT, TEN);
-    account.hold(transaction);
+    account.reserve(transaction);
 
     account.settle(transaction);
 
@@ -76,30 +104,30 @@ class AccountTest {
 
   @Test
   void severalTransactionsAccumulate() {
-    holdAndSettle(account, transaction(CREDIT, TEN));
-    holdAndSettle(account, transaction(DEBIT, FIVE));
+    reserveAndSettle(account, transaction(CREDIT, TEN));
+    reserveAndSettle(account, transaction(DEBIT, FIVE));
 
     assertThat(account.balance()).isEqualTo(FIVE);
-    assertThat(account.version()).isEqualTo(5);
+    assertThat(account.version()).isEqualTo(4);
   }
 
   @Test
-  void holdingAndSettlingSameTransactionTwiceIsIgnored() {
+  void reservingAndSettlingSameTransactionTwiceIsIgnored() {
     var transaction = transaction(CREDIT, TEN);
 
-    account.hold(transaction);
-    account.hold(transaction);
+    account.validateCredit(transaction);
+    account.validateCredit(transaction);
     account.settle(transaction);
     account.settle(transaction);
-    account.hold(transaction);
+    account.validateCredit(transaction);
 
     assertThat(account.balance()).isEqualTo(TEN);
-    assertThat(account.version()).isEqualTo(3);
+    assertThat(account.version()).isEqualTo(2);
   }
 
   @Test
-  void settlingUnheldTransactionIsRejected() {
-    var transaction = transaction(CREDIT, TEN);
+  void settlingUnreservedDebitIsRejected() {
+    var transaction = transaction(DEBIT, TEN);
 
     assertThatThrownBy(() -> account.settle(transaction))
         .isInstanceOf(IllegalStateException.class);
@@ -114,7 +142,7 @@ class AccountTest {
             TransactionLeg.of(otherAccountId, CREDIT, TEN),
             TransactionLeg.of(AccountId.random(), DEBIT, TEN)));
 
-    assertThatThrownBy(() -> account.hold(transaction))
+    assertThatThrownBy(() -> account.reserve(transaction))
         .isInstanceOf(IllegalArgumentException.class);
     assertThat(account.version()).isEqualTo(1);
   }
@@ -129,13 +157,13 @@ class AccountTest {
 
   @Test
   void rejectsAmountInOtherCurrencyWithoutChangingState() {
-    for (LedgerEntryType type : LedgerEntryType.values()) {
-      var transaction = transaction(type, Money.of(EUR, 10));
+    for (Direction direction : Direction.values()) {
+      var transaction = transaction(direction, Money.of(EUR, 10));
 
-      assertThatThrownBy(() -> account.hold(transaction))
+      assertThatThrownBy(() -> reserveOrValidate(account, transaction))
           .isInstanceOf(CurrencyMismatchException.class);
 
-      assertThat(account.hasHeldTransaction(transaction.id())).isFalse();
+      assertThat(account.hasReservedTransaction(transaction.id())).isFalse();
     }
     assertThat(account.version()).isEqualTo(1);
     assertThat(account.availableBalance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
@@ -150,99 +178,99 @@ class AccountTest {
     assertThat(eurAccount.getCurrencyUnit()).isEqualTo(EUR);
 
     var credit = transaction(eurAccount, CREDIT, eurTen);
-    eurAccount.hold(credit);
+    eurAccount.validateCredit(credit);
     eurAccount.settle(credit);
 
     assertThat(eurAccount.balance()).isEqualTo(eurTen);
-    assertThatThrownBy(() -> eurAccount.hold(transaction(eurAccount, CREDIT, TEN)))
+    assertThatThrownBy(() -> eurAccount.validateCredit(transaction(eurAccount, CREDIT, TEN)))
         .isInstanceOf(CurrencyMismatchException.class);
   }
 
   @Test
   void accountWithoutOverdraftRejectsDebitBeyondBalance() {
     var noOverdraft = Account.open(false);
-    holdAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, FIVE));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, FIVE));
 
     Transaction failingTransaction = transaction(noOverdraft, DEBIT, TEN);
-    assertThatThrownBy(() -> noOverdraft.hold(failingTransaction))
+    assertThatThrownBy(() -> noOverdraft.reserve(failingTransaction))
         .isInstanceOf(InsufficientFundsException.class);
 
     assertThat(noOverdraft.balance()).isEqualTo(FIVE);
-    assertThat(noOverdraft.version()).isEqualTo(3);
-    assertThat(noOverdraft.hasHeldTransaction(failingTransaction.id())).isFalse();
+    assertThat(noOverdraft.version()).isEqualTo(2);
+    assertThat(noOverdraft.hasReservedTransaction(failingTransaction.id())).isFalse();
   }
 
   @Test
   void accountWithoutOverdraftAllowsDebitDownToZero() {
     var noOverdraft = Account.open(false);
-    holdAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
 
-    holdAndSettle(noOverdraft, transaction(noOverdraft, DEBIT, TEN));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, DEBIT, TEN));
 
     assertThat(noOverdraft.balance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
   }
 
   @Test
-  void heldCreditDoesNotCoverDebit() {
+  void validatedCreditDoesNotCoverDebit() {
     var noOverdraft = Account.open(false);
-    noOverdraft.hold(transaction(noOverdraft, CREDIT, TEN));
+    noOverdraft.validateCredit(transaction(noOverdraft, CREDIT, TEN));
 
-    assertThatThrownBy(() -> noOverdraft.hold(transaction(noOverdraft, DEBIT, FIVE)))
+    assertThatThrownBy(() -> noOverdraft.reserve(transaction(noOverdraft, DEBIT, FIVE)))
         .isInstanceOf(InsufficientFundsException.class);
   }
 
   @Test
-  void heldDebitsReduceAvailableBalance() {
+  void reservedDebitsReduceAvailableBalance() {
     var noOverdraft = Account.open(false);
-    holdAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
-    noOverdraft.hold(transaction(noOverdraft, DEBIT, FIVE));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
+    noOverdraft.reserve(transaction(noOverdraft, DEBIT, FIVE));
 
     assertThat(noOverdraft.balance()).isEqualTo(TEN);
     assertThat(noOverdraft.availableBalance()).isEqualTo(FIVE);
-    assertThatThrownBy(() -> noOverdraft.hold(transaction(noOverdraft, DEBIT, TEN)))
+    assertThatThrownBy(() -> noOverdraft.reserve(transaction(noOverdraft, DEBIT, TEN)))
         .isInstanceOf(InsufficientFundsException.class);
-    noOverdraft.hold(transaction(noOverdraft, DEBIT, FIVE));
+    noOverdraft.reserve(transaction(noOverdraft, DEBIT, FIVE));
     assertThat(noOverdraft.availableBalance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
   }
 
   @Test
   void settlingDebitKeepsAvailableBalanceConsistent() {
     var noOverdraft = Account.open(false);
-    holdAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
 
-    holdAndSettle(noOverdraft, transaction(noOverdraft, DEBIT, FIVE));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, DEBIT, FIVE));
 
     assertThat(noOverdraft.balance()).isEqualTo(FIVE);
     assertThat(noOverdraft.availableBalance()).isEqualTo(FIVE);
   }
 
   @Test
-  void rollingBackHeldTransactionReleasesHold() {
+  void rollingBackReservedTransactionReleasesReservation() {
     var noOverdraft = Account.open(false);
-    holdAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
+    reserveAndSettle(noOverdraft, transaction(noOverdraft, CREDIT, TEN));
     var debit = transaction(noOverdraft, DEBIT, TEN);
-    noOverdraft.hold(debit);
+    noOverdraft.reserve(debit);
 
     noOverdraft.rollback(debit);
     noOverdraft.rollback(debit);
 
     assertThat(noOverdraft.balance()).isEqualTo(TEN);
     assertThat(noOverdraft.availableBalance()).isEqualTo(TEN);
-    assertThat(noOverdraft.hasHeldTransaction(debit.id())).isFalse();
+    assertThat(noOverdraft.hasReservedTransaction(debit.id())).isFalse();
     assertThat(noOverdraft.hasRolledBackTransaction(debit.id())).isTrue();
-    assertThat(noOverdraft.version()).isEqualTo(5);
-    noOverdraft.hold(transaction(noOverdraft, DEBIT, TEN));
+    assertThat(noOverdraft.version()).isEqualTo(4);
+    noOverdraft.reserve(transaction(noOverdraft, DEBIT, TEN));
   }
 
   @Test
-  void rollingBackUnheldTransactionBlocksItFromBeingHeld() {
-    var transaction = transaction(CREDIT, TEN);
+  void rollingBackUnreservedTransactionBlocksItFromBeingReserved() {
+    var transaction = transaction(DEBIT, TEN);
 
     account.rollback(transaction);
-    account.hold(transaction);
+    account.reserve(transaction);
 
     assertThat(account.version()).isEqualTo(2);
-    assertThat(account.hasHeldTransaction(transaction.id())).isFalse();
+    assertThat(account.hasReservedTransaction(transaction.id())).isFalse();
     assertThat(account.hasRolledBackTransaction(transaction.id())).isTrue();
     assertThat(account.balance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
     assertThat(account.availableBalance()).isEqualTo(Money.zero(DEFAULT_CURRENCY));
@@ -264,8 +292,8 @@ class AccountTest {
 
   @Test
   void rolledBackTransactionCannotBeSettled() {
-    var transaction = transaction(CREDIT, TEN);
-    account.hold(transaction);
+    var transaction = transaction(DEBIT, TEN);
+    account.reserve(transaction);
     account.rollback(transaction);
 
     assertThatThrownBy(() -> account.settle(transaction))
@@ -275,29 +303,46 @@ class AccountTest {
 
   @Test
   void settledTransactionCannotBeRolledBack() {
-    var transaction = transaction(CREDIT, TEN);
-    holdAndSettle(account, transaction);
+    var transaction = transaction(DEBIT, TEN);
+    reserveAndSettle(account, transaction);
 
     assertThatThrownBy(() -> account.rollback(transaction))
         .isInstanceOf(IllegalStateException.class);
-    assertThat(account.balance()).isEqualTo(TEN);
+    assertThat(account.balance()).isEqualTo(TEN.negated());
   }
 
-  private static void holdAndSettle(Account target, Transaction transaction) {
-    target.hold(transaction);
+  @Test
+  void rollingBackCreditIsRejected() {
+    var transaction = transaction(CREDIT, TEN);
+
+    assertThatThrownBy(() -> account.rollback(transaction))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(account.hasRolledBackTransaction(transaction.id())).isFalse();
+    assertThat(account.version()).isEqualTo(1);
+  }
+
+  private static void reserveAndSettle(Account target, Transaction transaction) {
+    reserveOrValidate(target, transaction);
     target.settle(transaction);
   }
 
-  private Transaction transaction(LedgerEntryType type, Money amount) {
-    return transaction(account, type, amount);
+  private static void reserveOrValidate(Account target, Transaction transaction) {
+    switch (transaction.legFor(target.id()).orElseThrow().direction()) {
+      case DEBIT -> target.reserve(transaction);
+      case CREDIT -> target.validateCredit(transaction);
+    }
   }
 
-  private Transaction transaction(Account target, LedgerEntryType type, Money amount) {
-    LedgerEntryType opposite = type == CREDIT ? DEBIT : CREDIT;
+  private Transaction transaction(Direction direction, Money amount) {
+    return transaction(account, direction, amount);
+  }
+
+  private Transaction transaction(Account target, Direction direction, Money amount) {
+    Direction opposite = direction == CREDIT ? DEBIT : CREDIT;
     return Transaction.start(
         ZonedDateTime.now(),
         List.of(
-            TransactionLeg.of(target.id(), type, amount),
+            TransactionLeg.of(target.id(), direction, amount),
             TransactionLeg.of(otherAccountId, opposite, amount)));
   }
 }

@@ -1,16 +1,17 @@
 package dev.baitursinov.caravan.ledger.account.entity;
 
+import dev.baitursinov.caravan.event.sourcing.EntityName;
+import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
+import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
 import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.account.value.AccountOpeningDetails;
-import dev.baitursinov.caravan.ledger.account.value.LedgerEntry;
+import dev.baitursinov.caravan.ledger.account.value.ReservationDetails;
+import dev.baitursinov.caravan.ledger.account.value.SettlementDetails;
 import dev.baitursinov.caravan.ledger.account.value.TransactionIdHolder;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
-import dev.baitursinov.caravan.event.sourcing.EntityName;
-import dev.baitursinov.caravan.event.sourcing.EventSourcedEntity;
-import dev.baitursinov.caravan.event.sourcing.applying.EventApplier;
 import lombok.Getter;
 import org.joda.money.CurrencyMismatchException;
 import org.joda.money.CurrencyUnit;
@@ -23,11 +24,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.ENTRY_HELD;
-import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.ENTRY_ROLLED_BACK;
-import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.ENTRY_SETTLED;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.BALANCE_RESERVED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.OPENED;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_ROLLED_BACK;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_SETTLED;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 
 @EntityName(Account.ENTITY_NAME)
 @EventApplier(AccountEventApplier.class)
@@ -37,14 +39,13 @@ public class Account extends EventSourcedEntity {
   public static final CurrencyUnit DEFAULT_CURRENCY = CurrencyUnit.USD;
 
   final AccountId id;
-  final Map<TransactionId, LedgerEntry> heldLedgerEntries = new HashMap<>();
+  final Map<TransactionId, Money> balanceReservations = new HashMap<>();
   final Set<TransactionId> settledTransactions = new HashSet<>();
   final Set<TransactionId> rolledBackTransactions = new HashSet<>();
 
   @Getter
   boolean overdraftAllowed;
   @Nullable Money balance;
-  @Nullable Money heldDebits;
 
   Account(AccountId id) {
     this.id = Objects.requireNonNull(id, "id");
@@ -62,34 +63,45 @@ public class Account extends EventSourcedEntity {
     return account;
   }
 
-  public void hold(Transaction transaction) {
+  public void reserve(Transaction transaction) {
     TransactionLeg leg = legFor(transaction);
+    if (leg.direction() != DEBIT) {
+      throw new IllegalArgumentException(
+          "Only a DEBIT can be reserved, %s has a %s leg on %s"
+              .formatted(transaction, leg.direction(), this));
+    }
 
-    if (hasHeldTransaction(transaction.id())
+    if (hasReservedTransaction(transaction.id())
         || hasSettledTransaction(transaction.id())
         || hasRolledBackTransaction(transaction.id())) {
       return;
     }
 
-    if (!leg.amount().getCurrencyUnit().equals(this.getCurrencyUnit())) {
-      throw new CurrencyMismatchException(this.getCurrencyUnit(), leg.amount().getCurrencyUnit());
-    }
+    validateCurrency(leg);
 
-    if (!overdraftAllowed
-        && leg.type() == DEBIT
-        && availableBalance().isLessThan(leg.amount())) {
+    if (!overdraftAllowed && availableBalance().isLessThan(leg.amount())) {
       throw new InsufficientFundsException(id, availableBalance(), leg.amount());
     }
 
     recordEvent(
-        ENTRY_HELD,
-        LedgerEntry.builder()
-            .accountId(id)
-            .transactionId(transaction.id())
-            .timestamp(transaction.startTimestamp())
-            .type(leg.type())
-            .amount(leg.amount())
-            .build());
+        BALANCE_RESERVED,
+        new ReservationDetails(transaction.id(), leg.amount()));
+  }
+
+  public void validateCredit(Transaction transaction) {
+    TransactionLeg leg = legFor(transaction);
+    if (leg.direction() != CREDIT) {
+      throw new IllegalArgumentException(
+          "%s has a %s leg on %s, not a credit".formatted(transaction, leg.direction(), this));
+    }
+
+    validateCurrency(leg);
+  }
+
+  private void validateCurrency(TransactionLeg leg) {
+    if (!leg.amount().getCurrencyUnit().equals(this.getCurrencyUnit())) {
+      throw new CurrencyMismatchException(this.getCurrencyUnit(), leg.amount().getCurrencyUnit());
+    }
   }
 
   public CurrencyUnit getCurrencyUnit() {
@@ -97,7 +109,9 @@ public class Account extends EventSourcedEntity {
   }
 
   public void settle(Transaction transaction) {
-    TransactionId transactionId = transaction.id();
+    TransactionLeg leg = legFor(transaction);
+
+    var transactionId = transaction.id();
     if (hasSettledTransaction(transactionId)) {
       return;
     }
@@ -105,18 +119,30 @@ public class Account extends EventSourcedEntity {
       throw new IllegalStateException(
           "%s is rolled back on %s".formatted(transaction, this));
     }
-    if (!heldLedgerEntries.containsKey(transactionId)) {
+    if (leg.direction() == DEBIT && !balanceReservations.containsKey(transactionId)) {
       throw new IllegalStateException(
-          "%s is not held on %s".formatted(transaction, this));
+          "%s is not reserved on %s".formatted(transaction, this));
     }
 
-    recordEvent(ENTRY_SETTLED, new TransactionIdHolder(transactionId));
+    recordEvent(
+        TRANSACTION_SETTLED,
+        SettlementDetails.builder()
+            .transactionId(transactionId)
+            .timestamp(transaction.startTimestamp())
+            .direction(leg.direction())
+            .amount(leg.amount())
+            .build());
   }
 
   public void rollback(Transaction transaction) {
-    legFor(transaction);
+    TransactionLeg leg = legFor(transaction);
+    if (leg.direction() != DEBIT) {
+      throw new IllegalArgumentException(
+          "Only a debit can be rolled back, %s has a %s leg on %s"
+              .formatted(transaction, leg.direction(), this));
+    }
 
-    TransactionId transactionId = transaction.id();
+    var transactionId = transaction.id();
     if (hasRolledBackTransaction(transactionId)) {
       return;
     }
@@ -125,7 +151,9 @@ public class Account extends EventSourcedEntity {
           "%s is already settled on %s".formatted(transaction, this));
     }
 
-    recordEvent(ENTRY_ROLLED_BACK, new TransactionIdHolder(transactionId));
+    recordEvent(
+        TRANSACTION_ROLLED_BACK,
+        new TransactionIdHolder(transactionId));
   }
 
   public Money balance() {
@@ -135,15 +163,15 @@ public class Account extends EventSourcedEntity {
     return balance;
   }
 
-  Money heldDebits() {
-    if (heldDebits == null) {
-      throw new IllegalStateException("%s is not opened".formatted(this));
-    }
-    return heldDebits;
+  public Money reservedBalance() {
+    return balanceReservations.values().stream()
+        .reduce(
+            Money.zero(getCurrencyUnit()),
+            Money::plus);
   }
 
   public Money availableBalance() {
-    return balance().minus(heldDebits());
+    return balance().minus(reservedBalance());
   }
 
   public boolean hasRolledBackTransaction(TransactionId transactionId) {
@@ -154,8 +182,8 @@ public class Account extends EventSourcedEntity {
     return this.settledTransactions.contains(transactionId);
   }
 
-  public boolean hasHeldTransaction(TransactionId transactionId) {
-    return this.heldLedgerEntries.containsKey(transactionId);
+  public boolean hasReservedTransaction(TransactionId transactionId) {
+    return this.balanceReservations.containsKey(transactionId);
   }
 
   private TransactionLeg legFor(Transaction transaction) {

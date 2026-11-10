@@ -5,8 +5,8 @@ import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import org.junit.jupiter.api.Test;
 
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.joda.money.CurrencyUnit.EUR;
 
@@ -28,22 +28,27 @@ class TransactionRollbackTest extends AbstractTransactionTest {
   }
 
   @Test
-  void accountsNeverHeldAreMarkedRolledBackToo() {
+  void debitAccountsNeverReservedAreMarkedRolledBackToo() {
     var from = openFundedAccount(FIVE);
     var to = openAccount(false);
+    long toVersionBefore = reload(to).version();
 
     var transactionId = initiateTransfer(from, to, TEN);
     awaitRolledBack(transactionId);
 
-    // the debit leg is held first and fails, so the credit leg is never held
-    assertThat(reload(to).hasHeldTransaction(transactionId)).isFalse();
-    assertThat(reload(to).hasRolledBackTransaction(transactionId)).isTrue();
+    // the debit leg fails to be reserved, yet it is marked so that a replayed reservation is ignored
+    assertThat(reload(from).hasReservedTransaction(transactionId)).isFalse();
+    assertThat(reload(from).hasRolledBackTransaction(transactionId)).isTrue();
+    // the credit leg reserves nothing, so nothing is released on its account
+    assertThat(reload(to).hasRolledBackTransaction(transactionId)).isFalse();
+    assertThat(reload(to).version()).isEqualTo(toVersionBefore);
   }
 
   @Test
-  void rejectionOfLaterLegReleasesHoldsOfEarlierLegs() {
+  void rejectedCreditAbortsBeforeAnyDebitIsReserved() {
     var from = openFundedAccount(TEN);
     var missingAccountId = AccountId.random();
+    long fromVersionBefore = reload(from).version();
 
     var transactionId = startTransaction(
         TransactionLeg.of(from.id(), DEBIT, TEN),
@@ -54,11 +59,13 @@ class TransactionRollbackTest extends AbstractTransactionTest {
     Account reloadedAccount = reload(from);
     assertThat(reloadedAccount.balance()).isEqualTo(TEN);
     assertThat(reloadedAccount.availableBalance()).isEqualTo(TEN);
-    assertThat(reloadedAccount.hasHeldTransaction(transactionId)).isFalse();
+    assertThat(reloadedAccount.hasReservedTransaction(transactionId)).isFalse();
+    // only the rolled-back marker is recorded, the debit was never reserved
+    assertThat(reloadedAccount.version()).isEqualTo(fromVersionBefore + 1);
   }
 
   @Test
-  void currencyMismatchAbortsTransactionAndReleasesHolds() {
+  void currencyMismatchAbortsTransactionAndReleasesReservations() {
     var from = openFundedAccount(TEN);
     var euroAccount = Account.open(false, EUR);
     accountRepository.save(euroAccount);
@@ -103,17 +110,17 @@ class TransactionRollbackTest extends AbstractTransactionTest {
   }
 
   @Test
-  void holdArrivingAfterRollbackIsIgnored() {
+  void reservationArrivingAfterRollbackIsIgnored() {
     var from = openFundedAccount(FIVE);
     var to = openAccount(false);
     var transactionId = initiateTransfer(from, to, TEN);
     var transaction = awaitRolledBack(transactionId);
 
-    var lateToAccount = reload(to);
-    long versionBeforeLateHold = lateToAccount.version();
-    lateToAccount.hold(transaction);
+    var lateFromAccount = reload(from);
+    long versionBeforeLateReservation = lateFromAccount.version();
+    lateFromAccount.reserve(transaction);
 
-    assertThat(lateToAccount.version()).isEqualTo(versionBeforeLateHold);
-    assertThat(lateToAccount.hasHeldTransaction(transactionId)).isFalse();
+    assertThat(lateFromAccount.version()).isEqualTo(versionBeforeLateReservation);
+    assertThat(lateFromAccount.hasReservedTransaction(transactionId)).isFalse();
   }
 }

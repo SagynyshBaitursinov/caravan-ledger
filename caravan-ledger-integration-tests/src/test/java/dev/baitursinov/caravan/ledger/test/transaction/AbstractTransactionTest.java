@@ -15,8 +15,8 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 abstract class AbstractTransactionTest extends AbstractSpringBootTest {
@@ -82,7 +82,7 @@ abstract class AbstractTransactionTest extends AbstractSpringBootTest {
     awaitEventually(() -> assertThat(load(transactionId).isAborted()).isTrue());
 
     Transaction transaction = load(transactionId);
-    legAccountIds(transaction).forEach(accountId ->
+    debitAccountIds(transaction).forEach(accountId ->
         awaitEventually(() ->
             assertThat(accountRepository.findBy(accountId.value()))
                 .hasValueSatisfying(account -> assertThat(account.hasRolledBackTransaction(transactionId)).isTrue())));
@@ -100,8 +100,8 @@ abstract class AbstractTransactionTest extends AbstractSpringBootTest {
         : awaitRolledBack(transactionId);
   }
 
-  protected Stream<AccountId> legAccountIds(Transaction transaction) {
-    return transaction.legs().stream()
+  protected Stream<AccountId> debitAccountIds(Transaction transaction) {
+    return transaction.debitLegs().stream()
         .map(TransactionLeg::accountId)
         .filter(accountId -> accountRepository.findBy(accountId.value()).isPresent());
   }

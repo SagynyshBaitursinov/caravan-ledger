@@ -3,8 +3,8 @@ package dev.baitursinov.caravan.ledger.test.transaction;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionLeg;
 import org.junit.jupiter.api.Test;
 
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TransactionSettlementTest extends AbstractTransactionTest {

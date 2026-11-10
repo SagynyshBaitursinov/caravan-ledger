@@ -1,7 +1,7 @@
 package dev.baitursinov.caravan.ledger.api;
 
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
-import dev.baitursinov.caravan.ledger.account.value.LedgerEntryType;
+import dev.baitursinov.caravan.ledger.common.value.Direction;
 import dev.baitursinov.caravan.ledger.transaction.entity.Transaction;
 import dev.baitursinov.caravan.ledger.transaction.service.TransactionService;
 import dev.baitursinov.caravan.ledger.transaction.value.TransactionId;
@@ -59,11 +59,11 @@ public class TransactionController {
   }
 
   public record LegRequest(@NotBlank String accountId,
-                           @NotNull LedgerEntryType type,
+                           @NotNull Direction direction,
                            @NotNull Money amount) {
 
     TransactionLeg toLeg() {
-      return TransactionLeg.of(AccountId.of(accountId), type, amount);
+      return TransactionLeg.of(AccountId.of(accountId), direction, amount);
     }
   }
 

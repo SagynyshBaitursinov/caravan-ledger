@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static dev.baitursinov.caravan.ledger.account.entity.Account.DEFAULT_CURRENCY;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -40,8 +40,8 @@ class TransactionSettlementServiceTest {
         List.of(
             TransactionLeg.of(from.id(), DEBIT, FIVE),
             TransactionLeg.of(to.id(), CREDIT, FIVE)));
-    from.hold(transaction);
-    to.hold(transaction);
+    from.reserve(transaction);
+    to.validateCredit(transaction);
     transaction.complete();
     // The previous delivery saved the debit leg and failed before the credit leg
     from.settle(transaction);
@@ -53,7 +53,7 @@ class TransactionSettlementServiceTest {
     service.settle(transaction.id());
 
     assertThat(to.hasSettledTransaction(transaction.id())).isTrue();
-    assertThat(to.hasHeldTransaction(transaction.id())).isFalse();
+    assertThat(to.hasReservedTransaction(transaction.id())).isFalse();
     assertThat(to.balance()).isEqualTo(FIVE);
     verify(accountRepository).save(to);
     verify(accountRepository, never()).save(from);

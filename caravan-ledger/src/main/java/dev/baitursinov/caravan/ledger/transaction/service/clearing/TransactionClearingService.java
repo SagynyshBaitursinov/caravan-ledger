@@ -1,5 +1,6 @@
 package dev.baitursinov.caravan.ledger.transaction.service.clearing;
 
+import dev.baitursinov.caravan.ledger.account.entity.Account;
 import dev.baitursinov.caravan.ledger.account.entity.AccountRepository;
 import dev.baitursinov.caravan.ledger.account.exception.AccountNotFoundException;
 import dev.baitursinov.caravan.ledger.account.exception.InsufficientFundsException;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.joda.money.CurrencyMismatchException;
 import org.springframework.stereotype.Service;
+
 
 @Slf4j
 @Service
@@ -32,8 +34,13 @@ public class TransactionClearingService {
     }
 
     try {
-      for (TransactionLeg leg : transaction.legs()) {
-        hold(transaction, leg);
+      for (TransactionLeg leg : transaction.creditLegs()) {
+        loadAccount(leg).validateCredit(transaction);
+      }
+      for (TransactionLeg leg : transaction.debitLegs()) {
+        var account = loadAccount(leg);
+        account.reserve(transaction);
+        accountRepository.save(account);
       }
     } catch (AccountNotFoundException | InsufficientFundsException | CurrencyMismatchException exception) {
       log.info("Aborting {}: {}", transactionId, exception.getMessage());
@@ -46,12 +53,9 @@ public class TransactionClearingService {
     transactionRepository.save(transaction);
   }
 
-  private void hold(Transaction transaction,
-                    TransactionLeg leg) {
-    var account = accountRepository.findBy(leg.accountId().value())
+  private Account loadAccount(TransactionLeg leg) {
+    return accountRepository.findBy(leg.accountId().value())
         .orElseThrow(() -> new AccountNotFoundException(leg.accountId()));
-    account.hold(transaction);
-    accountRepository.save(account);
   }
 
   public void rollback(TransactionId transactionId) {
@@ -61,8 +65,9 @@ public class TransactionClearingService {
   private void rollbackLegs(TransactionId transactionId) {
     var transaction = load(transactionId);
 
-    // Every leg is rolled back, even those never held, so a hold command replaying can no longer succeed
-    for (TransactionLeg leg : transaction.legs()) {
+    // Every debit is rolled back, even those never reserved, so a reserve command replaying can no longer succeed.
+    // Credits reserve nothing, so there is nothing to release
+    for (TransactionLeg leg : transaction.debitLegs()) {
       accountRepository.findBy(leg.accountId().value())
           .filter(account -> !account.hasRolledBackTransaction(transactionId))
           .ifPresent(account -> {

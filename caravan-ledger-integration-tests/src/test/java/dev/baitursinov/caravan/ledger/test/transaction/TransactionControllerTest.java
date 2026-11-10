@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TransactionControllerTest extends AbstractSpringBootTest {
@@ -165,15 +165,15 @@ class TransactionControllerTest extends AbstractSpringBootTest {
     assertRejected("""
         {
           "legs": [
-            {"accountId": "a", "type": "DEBIT", "amount": {"amount": 2, "currency": "USD"}},
-            {"accountId": "b", "type": "CREDIT", "amount": {"amount": 1, "currency": "USD"}}
+            {"accountId": "a", "direction": "DEBIT", "amount": {"amount": 2, "currency": "USD"}},
+            {"accountId": "b", "direction": "CREDIT", "amount": {"amount": 1, "currency": "USD"}}
           ]
         }""", "sum up to zero");
     assertRejected("""
         {
           "legs": [
-            {"accountId": "a", "type": "DEBIT", "amount": {"amount": 1, "currency": "USD"}},
-            {"accountId": "b", "type": "CREDIT", "amount": {"amount": 1, "currency": "EUR"}}
+            {"accountId": "a", "direction": "DEBIT", "amount": {"amount": 1, "currency": "USD"}},
+            {"accountId": "b", "direction": "CREDIT", "amount": {"amount": 1, "currency": "EUR"}}
           ]
         }""", "one currency");
   }
@@ -186,19 +186,19 @@ class TransactionControllerTest extends AbstractSpringBootTest {
     assertRejected("""
         {"legs": [null]}""", "legs[0] must not be null");
     assertRejected("""
-        {"legs": [{"type": "DEBIT", "amount": {"amount": 1, "currency": "USD"}}]}""",
+            {"legs": [{"direction": "DEBIT", "amount": {"amount": 1, "currency": "USD"}}]}""",
         "legs[0].accountId must not be blank");
     assertRejected("""
-        {"legs": [{"accountId": "a", "amount": {"amount": 1, "currency": "USD"}}]}""",
-        "legs[0].type must not be null");
+            {"legs": [{"accountId": "a", "amount": {"amount": 1, "currency": "USD"}}]}""",
+        "legs[0].direction must not be null");
     assertRejected("""
-        {"legs": [{"accountId": "a", "type": "DEBIT"}]}""",
+            {"legs": [{"accountId": "a", "direction": "DEBIT"}]}""",
         "legs[0].amount must not be null");
     assertRejected("""
-        {"legs": [{"accountId": "a", "type": "DEBIT", "amount": {"currency": "USD"}}]}""",
+            {"legs": [{"accountId": "a", "direction": "DEBIT", "amount": {"currency": "USD"}}]}""",
         "malformed");
     assertRejected("""
-        {"legs": [{"accountId": "a", "type": "DEBIT", "amount": {"amount": 1}}]}""",
+            {"legs": [{"accountId": "a", "direction": "DEBIT", "amount": {"amount": 1}}]}""",
         "malformed");
   }
 
@@ -212,9 +212,9 @@ class TransactionControllerTest extends AbstractSpringBootTest {
   void malformedBodyIsRejected() {
     assertRejected("{", "malformed");
     assertRejected("""
-        {"legs": [{"accountId": "a", "type": "OTHER", "amount": {"amount": 1, "currency": "USD"}}]}""", "malformed");
+        {"legs": [{"accountId": "a", "direction": "OTHER", "amount": {"amount": 1, "currency": "USD"}}]}""", "malformed");
     assertRejected("""
-        {"legs": [{"accountId": "a", "type": "DEBIT", "amount": 1}]}""", "malformed");
+        {"legs": [{"accountId": "a", "direction": "DEBIT", "amount": 1}]}""", "malformed");
   }
 
   @Test
@@ -236,8 +236,8 @@ class TransactionControllerTest extends AbstractSpringBootTest {
     return """
         {
           "legs": [
-            {"accountId": "%1$s", "type": "DEBIT", "amount": {"amount": %3$s, "currency": "%4$s"}},
-            {"accountId": "%2$s", "type": "CREDIT", "amount": {"amount": %3$s, "currency": "%4$s"}}
+            {"accountId": "%1$s", "direction": "DEBIT", "amount": {"amount": %3$s, "currency": "%4$s"}},
+            {"accountId": "%2$s", "direction": "CREDIT", "amount": {"amount": %3$s, "currency": "%4$s"}}
           ]
         }"""
         .formatted(from, to, amount, currency);

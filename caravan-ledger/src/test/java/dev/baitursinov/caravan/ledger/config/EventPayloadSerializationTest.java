@@ -5,7 +5,8 @@ import dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration;
 import dev.baitursinov.caravan.ledger.account.entity.Account;
 import dev.baitursinov.caravan.ledger.account.value.AccountId;
 import dev.baitursinov.caravan.ledger.account.value.AccountOpeningDetails;
-import dev.baitursinov.caravan.ledger.account.value.LedgerEntry;
+import dev.baitursinov.caravan.ledger.account.value.ReservationDetails;
+import dev.baitursinov.caravan.ledger.account.value.SettlementDetails;
 import dev.baitursinov.caravan.ledger.account.value.TransactionIdHolder;
 import dev.baitursinov.caravan.ledger.config.jackson.JacksonConfiguration;
 import dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration;
@@ -31,12 +32,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.ENTRY_HELD;
-import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.ENTRY_ROLLED_BACK;
-import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.ENTRY_SETTLED;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.BALANCE_RESERVED;
 import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.OPENED;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.CREDIT;
-import static dev.baitursinov.caravan.ledger.account.value.LedgerEntryType.DEBIT;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_ROLLED_BACK;
+import static dev.baitursinov.caravan.ledger.account.config.AccountEventsConfiguration.TRANSACTION_SETTLED;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.CREDIT;
+import static dev.baitursinov.caravan.ledger.common.value.Direction.DEBIT;
 import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration.ABORTED;
 import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration.COMPLETED;
 import static dev.baitursinov.caravan.ledger.transaction.config.TransactionEventsConfiguration.STARTED;
@@ -73,27 +74,25 @@ class EventPayloadSerializationTest {
             new AccountOpeningDetails(true, CurrencyUnit.EUR),
             """
                 {"overdraftAllowed": true, "currency": "EUR"}"""),
-        new Case(Account.ENTITY_NAME, ENTRY_HELD, "",
-            LedgerEntry.builder()
-                .accountId(ACCOUNT_ID)
+        new Case(Account.ENTITY_NAME, BALANCE_RESERVED, "",
+            new ReservationDetails(TRANSACTION_ID, TEN),
+            """
+                {"transactionId": "transaction-1", "amount": %s}""".formatted(TEN_USD_JSON)),
+        new Case(Account.ENTITY_NAME, TRANSACTION_SETTLED, "",
+            SettlementDetails.builder()
                 .transactionId(TRANSACTION_ID)
                 .timestamp(TIMESTAMP)
-                .type(DEBIT)
+                .direction(CREDIT)
                 .amount(TEN)
                 .build(),
             """
                 {
-                  "accountId": "account-1",
                   "transactionId": "transaction-1",
                   "timestamp": "2026-11-06T10:15:30.123Z",
-                  "type": "DEBIT",
+                  "direction": "CREDIT",
                   "amount": %s
                 }""".formatted(TEN_USD_JSON)),
-        new Case(Account.ENTITY_NAME, ENTRY_SETTLED, "",
-            new TransactionIdHolder(TRANSACTION_ID),
-            """
-                {"transactionId": "transaction-1"}"""),
-        new Case(Account.ENTITY_NAME, ENTRY_ROLLED_BACK, "",
+        new Case(Account.ENTITY_NAME, TRANSACTION_ROLLED_BACK, "",
             new TransactionIdHolder(TRANSACTION_ID),
             """
                 {"transactionId": "transaction-1"}"""),
@@ -105,8 +104,8 @@ class EventPayloadSerializationTest {
                 {
                   "transactionStartTimestamp": "2026-11-06T10:15:30.123Z",
                   "legs": [
-                    {"accountId": "account-1", "type": "DEBIT", "amount": %1$s},
-                    {"accountId": "account-2", "type": "CREDIT", "amount": %1$s}
+                    {"accountId": "account-1", "direction": "DEBIT", "amount": %1$s},
+                    {"accountId": "account-2", "direction": "CREDIT", "amount": %1$s}
                   ]
                 }""".formatted(TEN_USD_JSON)),
         new Case(Transaction.ENTITY_NAME, ABORTED, "",

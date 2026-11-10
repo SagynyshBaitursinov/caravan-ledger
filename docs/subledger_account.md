@@ -5,28 +5,33 @@
 ## Events
 
 ```
-opened ─► entry-held ─► entry-settled
-                    └─► entry-rolled-back
+opened ─► balance-reserved ─► transaction-settled
+      │                   └─► transaction-rolled-back
+      └─► transaction-settled (credit)
 ```
 
 - `opened`: fixes `currency` and possibility of overdrafts (`overdraftAllowed`).
-- `entry-held`: records a `LedgerEntry` for one `TransactionLeg`.
-- `entry-settled`: moves the held `LedgerEntry` into `balance`.
-- `entry-rolled-back`: releases the held `LedgerEntry`.
+- `balance-reserved`: reserves the amount of one `DEBIT` `TransactionLeg`.
+- `transaction-settled`: records `SettlementDetails` of one `TransactionLeg` into `balance`, releasing the reservation
+  of a `DEBIT`.
+- `transaction-rolled-back`: rolls back one `DEBIT` `TransactionLeg`, releasing its reservation if any.
 
 ## Balances
 
-- `balance`: sum of settled entries.
-- `heldDebits`: sum of held `DEBIT` entries. Held `CREDIT` entries are not counted.
-- `availableBalance = balance − heldDebits`.
-- Held funds are not spendable to prevent double spending in case of transaction abortion.
+- `balance`: sum of settled legs.
+- `reservedBalance`: sum of reserved `DEBIT` amounts.
+- `availableBalance = balance − reservedBalance`.
+- Reserved funds are not spendable to prevent double spending in case of transaction abortion.
 
 ## Rules
 
-- One `LedgerEntry` per `Transaction` per `Account`.
-- `hold` rejects a leg in another currency (`CurrencyMismatchException`).
-- `hold` rejects a `DEBIT` above `availableBalance` unless `overdraftAllowed` (`InsufficientFundsException`).
-- `settle` requires a held entry.
+- One settlement per `Transaction` per `Account`.
+- `reserve` and `validateCredit` reject a leg in another currency (`CurrencyMismatchException`).
+- `reserve` rejects a `DEBIT` above `availableBalance` unless `overdraftAllowed` (`InsufficientFundsException`).
+- `reserve` accepts a `DEBIT` only.
+- `validateCredit` accepts a `CREDIT` only. It validates the leg, no event is recorded.
+- `rollback` accepts a `DEBIT` only.
+- `settle` of a `DEBIT` requires a reservation.
 - `settle` and `rollback` are mutually exclusive per `Transaction`.
 
 ## Guarantees
@@ -35,9 +40,10 @@ Commands arrive at least once, in any order.
 
 - One `Account` cannot be modified in parallel due to the framework constraints. No lost updates are possible.
 - Changes happening to single Account and events published on those are single unit of consistency.
-- `hold`, `settle`, `rollback` are idempotent per `TransactionId`.
-- `settledTransactions` and `rolledBackTransactions` are the dedup markers.
-- `rollback` is accepted before `hold`. The marker makes a late `hold` a no-op, so funds of an aborted `Transaction` are never held.
+- `reserve`, `settle`, `rollback` are idempotent per `TransactionId`.
+- `balanceReservations`, `settledTransactions` and `rolledBackTransactions` are the dedup markers.
+- `rollback` is accepted before `reserve`. The marker makes a late `reserve` a no-op, so funds of an aborted
+  `Transaction` are never reserved.
 
 ## Boundaries
 
