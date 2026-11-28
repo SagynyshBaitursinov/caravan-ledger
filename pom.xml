@@ -45,7 +45,7 @@
 
         <java.version>25</java.version>
         <lombok.version>1.18.48</lombok.version>
-        <spring.boot.version>4.1.2</spring.boot.version>
+        <spring.boot.version>4.2.0</spring.boot.version>
         <events-caravan.version>1.2.1</events-caravan.version>
         <aws.sdk.version>2.53.3</aws.sdk.version>
         <joda.money.version>2.0.3</joda.money.version>
@@ -53,7 +53,7 @@
         <maven.compiler.plugin.version>3.16.0</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.6.1</maven.surefire.plugin.version>
         <maven.dependency.plugin.version>3.11.0</maven.dependency.plugin.version>
-        <flatten.maven.plugin.version>1.8.0</flatten.maven.plugin.version>
+        <flatten.maven.plugin.version>1.10.0</flatten.maven.plugin.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
